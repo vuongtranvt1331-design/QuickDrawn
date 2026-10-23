@@ -1,18 +1,16 @@
-# Quick Drawn — Synonym Shootout
+# Lexical Space (LS)
 
-A fast-paced Western arcade vocabulary shootout game designed for **Lexical Space (LS)** and **Arcadehub**, operating entirely **local-first using browser IndexedDB**.
+Interactive Vocabulary Learning Space featuring IndexedDB local-first storage, Firebase real-time sync, and seamless two-way integration with the ArcadeCenter arcade game hub.
 
-## 🎮 Production URL
-👉 **Play Online:** [https://vuongtranvt1331-design.github.io/QuickDrawn/](https://vuongtranvt1331-design.github.io/QuickDrawn/)
+## 🚀 Live Production URL
+- **Production URL:** [https://vuongtranvt1331-design.github.io/Lexical_Space/](https://vuongtranvt1331-design.github.io/Lexical_Space/)
 
-## 🤠 Features
-- **Local-First IndexedDB Retrieval:** Reads student vocabulary exclusively from browser `LexicalSpaceDB` (`words` store). Zero automatic Firebase reads or remote calls at runtime.
-- **Synonym Shootout:** Duel against the clock matching synonyms.
-- **Sharpshooter 25-Point Celebration:** Reach 25 points to unlock the special Sharpshooter achievement card with retro 8-bit fanfare and Western star trophy.
-- **Uncapped High Scoring:** Unlimited rounds and uncapped scoring beyond 25 points.
-- **Arcadehub Integration:** Supports URL query parameters (`user`, `mode`, `topic`, `returnUrl`) and seamless return navigation.
+## 🎮 ArcadeCenter Ecosystem
+- **Arcadehub / GameHub:** [https://vuongtranvt1331-design.github.io/Arcadehub/](https://vuongtranvt1331-design.github.io/Arcadehub/)
+- **Quick Drawn:** [https://vuongtranvt1331-design.github.io/QuickDrawn/](https://vuongtranvt1331-design.github.io/QuickDrawn/)
+- **Poker:** [https://vuongtranvt1331-design.github.io/Poker/](https://vuongtranvt1331-design.github.io/Poker/)
 
-## 🛠️ Tech Stack
-- Vanilla HTML5 / CSS3 / JavaScript (Zero-build standalone architecture)
-- Web Audio API (Synthesized western sound effects)
-- Native Browser IndexedDB API
+## 🔗 Architecture & Navigation
+- **Local-First Storage:** IndexedDB `LexicalSpaceDB` (object store `words`) is shared directly across all applications within the single browser origin `https://vuongtranvt1331-design.github.io`.
+- **Two-Way Navigation:** Seamlessly navigate to ArcadeSpace from the navigation drawer, and return with a single click via `← Back to Lexical Space`.
+- **Single-Origin Cross-App Synergy:** Mini-games instantly read personal vocabulary cards without querying Firebase or requiring extra network requests.
