@@ -5,6 +5,11 @@
     }
 
     function detectStoredUsername() {
+      try {
+        const profile = sessionStorage.getItem("ls_active_profile");
+        if (profile !== null) return profile.trim();
+      } catch (_) {}
+
       // Check the primary LexicalSpace localStorage key and fallback keys
       const keysToCheck = [
         getEffectiveUsernameStorageKey(),
@@ -47,25 +52,18 @@
       return normalizeText(str).toLowerCase();
     }
 
-    function isEligibleMasteredWord(rawDoc, expectedUsername) {
-      if (!rawDoc || typeof rawDoc !== "object") return null;
+    function isEligibleMasteredWord(rawDoc) {
       if (rawDoc.memoryStatus !== "mastered") return null;
 
-      // 1. Username match (case-insensitive & trimmed)
-      const docUsername = normalizeText(rawDoc.username);
-      if (expectedUsername && docUsername && normalizeKey(docUsername) !== normalizeKey(expectedUsername)) {
-        return null;
-      }
-
-      // 2. Valid English word
+      // 1. Valid English word
       const word = normalizeText(rawDoc.word);
       if (!word) return null;
 
-      // 3. Valid Vietnamese meaning hint
+      // 2. Valid Vietnamese meaning hint
       const meaning = normalizeText(rawDoc.meaning || rawDoc.translation);
       if (!meaning) return null;
 
-      // 4. Usable synonyms
+      // 3. Usable synonyms
       const syn1 = normalizeText(rawDoc.synonym1 || rawDoc.synonym);
       const syn2 = normalizeText(rawDoc.synonym2);
       const validSynonyms = [];
@@ -97,7 +95,7 @@
         meaning,
         synonyms: validSynonyms,
         memoryStatus: rawDoc.memoryStatus || "unknown",
-        topic: (rawDoc.topic || "").trim()
+        topics: [rawDoc.topic, ...(Array.isArray(rawDoc.topics) ? rawDoc.topics : [])].map(normalizeText).filter(Boolean)
       };
     }
 
@@ -107,6 +105,7 @@
         try {
           if (!window.indexedDB) return resolve({ words: [], masteredCount: 0, allUsers: [] });
           const req = indexedDB.open(LEXICALSPACE_CONFIG.dbName);
+          req.onupgradeneeded = () => req.transaction.abort();
           req.onerror = () => resolve({ words: [], masteredCount: 0, allUsers: [] });
           req.onsuccess = (e) => {
             const db = e.target.result;
@@ -120,33 +119,24 @@
             getReq.onerror = () => resolve({ words: [], masteredCount: 0, allUsers: [] });
             getReq.onsuccess = () => {
               const all = getReq.result || [];
-              const u = expectedUser ? normalizeKey(expectedUser) : "";
+              // LexicalSpace v3 keys profiles by exact username. Older libraries matched case-insensitively.
+              const exactProfile = db.version >= 3;
+              const normalizeOwner = exactProfile ? normalizeText : normalizeKey;
+              const owner = normalizeOwner(expectedUser);
               const matchedMastered = [];
-
               const userSet = new Set();
 
               for (const item of all) {
-                if (item && item.username) {
-                  const uname = normalizeText(item.username);
-                  if (uname) userSet.add(uname);
-                }
-
-                if (!u) continue;
-                const itemUser = normalizeKey(item.username || "");
-                if (itemUser === u) {
-                  const validated = isEligibleMasteredWord(item, expectedUser);
-                  if (validated) {
-                    if (item.memoryStatus === "mastered") {
-                      matchedMastered.push(validated);
-                    }
-
-                  }
-                }
+                if (!item || item.deleted === true) continue;
+                const username = normalizeText(item.username);
+                if (username) userSet.add(username);
+                if (!owner || normalizeOwner(username) !== owner) continue;
+                const validated = isEligibleMasteredWord(item);
+                if (validated) matchedMastered.push(validated);
               }
 
-              const chosen = matchedMastered;
               resolve({
-                words: chosen,
+                words: matchedMastered,
                 masteredCount: matchedMastered.length,
                 allUsers: Array.from(userSet)
               });

@@ -1000,7 +1000,7 @@ const state = {
           words = localResult.words || [];
 
           if (urlMode === "topic") {
-            const topicWords = words.filter(w => (w.topic || "").trim().toLowerCase() === urlTopic.toLowerCase());
+            const topicWords = words.filter(w => w.topics.some(topic => normalizeKey(topic) === normalizeKey(urlTopic)));
             if (topicWords.length === 0) {
               dom.titleScreen.classList.remove("hidden");
               setVocabStatus(`⚠️ Topic "${urlTopic}" has no words in your library. Please select a different topic in Arcade Hub.`, "error");
