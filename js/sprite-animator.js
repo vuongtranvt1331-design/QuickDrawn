@@ -146,11 +146,12 @@ class Projectile {
 
 // Rendering timings shared by the live duel and its combat logic.
 class CombatAnimator {
-  constructor(ctx) { this.ctx=ctx;this.slash=new Image();this.slash.src='assets/images/silver_slash_vfx.png';this.arrow=new Image();this.arrow.src='assets/images/arrow_projectile.png'; }
-  static hitTimes(hero) { return hero==='an'?[100,350]:[120,370,620]; }
+  constructor(ctx) { this.ctx=ctx;this.slash=new Image();this.slash.src='assets/images/silver_slash_vfx.png';this.arrow=new Image();this.arrow.src='assets/images/arrow_projectile.png';this.scroll=new Image();this.scroll.src='assets/images/scroll_projectile.png';this.watermelon=new Image();this.watermelon.src='assets/images/watermelon_projectile.png';this.orange=new Image();this.orange.src='assets/images/orange_projectile.png'; }
+  static isRanged(hero) { return ['an','chu','mai','toan'].includes(hero); }
+  static hitTimes(hero) { return this.isRanged(hero)?[100,350]:[120,370,620]; }
   static hitCount(hero) { return this.hitTimes(hero).length; }
   static impactMs(hero) { return this.hitTimes(hero)[0]; }
-  static displacement(hero,t) { if(hero==='an')return 0;if(t<120)return Math.min(1,t/120)*510;if(t<870)return 510;if(t<990)return 510*(1-(t-870)/120);return 0; }
+  static displacement(hero,t) { if(this.isRanged(hero))return 0;if(t<120)return Math.min(1,t/120)*510;if(t<870)return 510;if(t<990)return 510*(1-(t-870)/120);return 0; }
   drawSlash(x,y,elapsed) { const frame=SilverSlashEffect.frameAt(elapsed);if(frame<0)return;const c=this.ctx,img=this.slash;if(img.complete&&img.naturalWidth){c.drawImage(img,frame*img.naturalWidth/3,0,img.naturalWidth/3,img.naturalHeight,x-78,y-100,156,156)}else{c.save();c.strokeStyle='#f7ffff';c.lineWidth=11;c.shadowColor='#b8d9e8';c.shadowBlur=15;c.beginPath();c.moveTo(x-55,y+30);c.quadraticCurveTo(x,y-80,x+55,y-80);c.stroke();c.restore()} }
-  drawProjectile(x,y,flip) {const c=this.ctx;c.save();c.translate(x,y);c.scale(flip?-1:1,1);const img=this.arrow;if(img.complete&&img.naturalWidth)c.drawImage(img,-60,-22,120,44);else{c.strokeStyle='#ffe06a';c.lineWidth=5;c.beginPath();c.moveTo(-45,0);c.lineTo(45,0);c.lineTo(30,-8);c.moveTo(45,0);c.lineTo(30,8);c.stroke()}c.restore()}
+  drawProjectile(x,y,flip,hero='an') {const c=this.ctx;c.save();c.translate(x,y);c.scale(flip?-1:1,1);const img=hero==='chu'?this.scroll:hero==='mai'?this.watermelon:hero==='toan'?this.orange:this.arrow;if(img.complete&&img.naturalWidth){if(hero==='mai'||hero==='toan'){const h=64,w=h*img.naturalWidth/img.naturalHeight;c.drawImage(img,-w/2,-h/2,w,h)}else c.drawImage(img,-60,-22,120,44)}else if(hero==='mai'||hero==='toan'){c.fillStyle=hero==='mai'?'#398f45':'#ef9b24';c.beginPath();c.arc(0,0,19,0,Math.PI*2);c.fill()}else if(hero==='chu'){c.fillStyle='#f4e8c1';c.fillRect(-30,-12,60,24);c.strokeStyle='#8b1e1e';c.lineWidth=4;c.strokeRect(-30,-12,60,24)}else{c.strokeStyle='#ffe06a';c.lineWidth=5;c.beginPath();c.moveTo(-45,0);c.lineTo(45,0);c.lineTo(30,-8);c.moveTo(45,0);c.lineTo(30,8);c.stroke()}c.restore()}
 }

@@ -1,6 +1,6 @@
 # Anh Hùng Hào Kiệt — hướng dẫn chạy
 
-Chạy `run-local.bat` hoặc mở dự án qua máy chủ web. Năm tướng đều có sẵn; chạm vào nhân vật ở sảnh để đổi tướng. Mỗi tướng có trang phục mặc định và hai ô trang phục phụ đang khóa. Lựa chọn tướng được lưu trong localStorage của trình duyệt.
+Chạy `run-local.bat` hoặc mở dự án qua máy chủ web. Chín tướng đều có sẵn, gồm Chu Văn An, Lạc Long Quân, Mai An Tiêm và Trần Quốc Toản; chạm vào nhân vật ở sảnh để đổi tướng. Mỗi tướng có trang phục mặc định và hai ô trang phục phụ đang khóa. Lựa chọn tướng được lưu trong localStorage của trình duyệt.
 
 Chọn Đấu với máy để thi đấu tính điểm với một đối thủ có máu vô hạn. Máy tự phản đòn sau 7 giây ở câu đầu; thời gian giảm 0,2 giây mỗi câu và không thấp hơn 1,75 giây. Trả lời đúng được 1 điểm, trả lời sai bị đối thủ tấn công ngay. Chọn Song đấu để tạo phòng hoặc nhập mã phòng bốn số. Đấu mạng cần Internet để tải PeerJS và kết nối máy chủ báo hiệu; PeerJS sử dụng các máy chủ STUN/TURN mặc định; kết nối vẫn có thể thất bại nếu mạng hoặc dịch vụ trung gian bị chặn.
 
@@ -10,7 +10,7 @@ Chủ phòng phân xử các đòn theo thứ tự đến và đồng bộ kết
 
 ## Âm thanh tùy chọn
 
-Đặt các tệp sau vào `assets/audio/`, định dạng `.mp3` hoặc `.wav` (ưu tiên MP3): `shout_attack`, `sword_slash`, `elephant_charge`, `bow_shot`, `fall_defeat`, `tap_click`. Nếu thiếu hoặc không giải mã được tệp, game tổng hợp âm thanh thay thế bằng Web Audio. Âm tổng hợp không phải tiếng người hoặc voi được ghi âm.
+Đặt các tệp sau vào `assets/audio/`, định dạng `.mp3` hoặc `.wav` (ưu tiên MP3): `shout_attack`, `sword_slash`, `elephant_charge`, `bow_shot`, `fall_defeat`, `tap_click`, `scroll_cast`, `fruit_throw`. Nếu thiếu hoặc không giải mã được tệp, game tổng hợp âm thanh thay thế bằng Web Audio. Âm tổng hợp không phải tiếng người hoặc voi được ghi âm.
 
 ## Từ vựng Lexical Space
 
@@ -27,3 +27,5 @@ Câu hỏi được xáo trộn thành từng vòng, chỉ lặp sau khi đã d�
 ## Khắc phục PvP
 
 Hai máy phải tải cùng phiên bản mới nhất, mở sảnh Song đấu và giữ chủ phòng đang chờ trước khi nhập mã. Nếu báo khác phiên bản, cập nhật rồi tải lại trang trên cả hai máy. Nếu kết nối quá lâu, thử mạng khác và kiểm tra truy cập PeerJS. Game chỉ vào trận sau khi hai phía đã xác nhận phiên bản và sẵn sàng.
+
+Chu Văn An tấn công tầm xa bằng cuộn giấy; Mai An Tiêm ném dưa hấu, Trần Quốc Toản ném cam, còn Lạc Long Quân dùng cận chiến và có hào quang. Hai máy PvP cần tải cùng bản mới để chọn được hai tướng này.

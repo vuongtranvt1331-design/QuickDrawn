@@ -1,8 +1,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const PVP_PROTOCOL=9, CONNECTION_TIMEOUT_MS=18000;
+const PVP_PROTOCOL=10, CONNECTION_TIMEOUT_MS=18000;
 let connectionEpoch=0, connectionTimer=null;
-const heroes = {ngo:'Ngô Quyền',trung:'Hai Bà Trưng',an:'An Dương Vương',giong:'Thánh Gióng',tran:'Trần Hưng Đạo'};
+const heroes = {ngo:'Ngô Quyền',trung:'Hai Bà Trưng',an:'An Dương Vương',giong:'Thánh Gióng',tran:'Trần Hưng Đạo',chu:'Chu Văn An',lac:'Lạc Long Quân',mai:'Mai An Tiêm',toan:'Trần Quốc Toản'};
 const words = [
  ['substantial','đáng kể','considerable','reluctant','obsolete','candid'],['allocate','phân bổ','assign','worsen','inspect','agree'],['sustainable','bền vững','viable','vague','outdated','hesitant'],['inevitable','không thể tránh khỏi','unavoidable','precise','plentiful','profitable'],['meticulous','tỉ mỉ','thorough','vague','strong','outdated'],['ambiguous','mơ hồ','vague','precise','profitable','persistent'],['deteriorate','xấu đi','worsen','increase','agree','expand'],['augment','làm tăng thêm','increase','decline','inspect','reduce'],['obsolete','lỗi thời','outdated','viable','enduring','precise'],['resilient','kiên cường','tough','hesitant','vague','outdated'],['scrutinize','xem xét kỹ','inspect','increase','agree','reduce'],['lucrative','sinh lời','profitable','unavoidable','hesitant','outdated'],['mitigate','giảm nhẹ','reduce','expand','increase','assign'],['plausible','hợp lý','credible','outdated','persistent','tough'],['adversity','nghịch cảnh','hardship','proposal','profit','initiative'],['reluctant','miễn cưỡng','hesitant','plentiful','precise','strong'],['pivotal','then chốt','crucial','vague','outdated','hesitant'],['candid','thẳng thắn','frank','ambiguous','reluctant','perilous'],['abundant','dồi dào','plentiful','scarce','obsolete','candid'],['tenacious','ngoan cường','persistent','hesitant','vague','outdated'] ];
 const canvas=$('canvas'),ctx=canvas.getContext('2d');
@@ -29,9 +29,13 @@ const SPRITE_FEET={
  ngo:[[219,219,219,219,219,219],[219,219,219],[218,218,217],[218,218,218],[216,212,215]],
  tran:[[219,219,219,219,219,219],[217,217,217],[212,212,213],[217,217,217],[215,213,215]],
  trung:[[209,209,209,210,209,209],[207,206,207],[204,204,204],[205,206,206],[208,206,209]],
- giong:[[211,211,211,211,211,211],[214,214,214],[201,201,201],[199,199,199],[201,200,200]]
+ giong:[[211,211,211,211,211,211],[214,214,214],[201,201,201],[199,199,199],[201,200,200]],
+ chu:[[223,223,223,223,223,223],[221,221,221],[219,215,219],[222,221,221],[217,212,224]],
+ lac:[[218,218,218,217,218,218],[208,208,208],[200,200,198],[200,200,200],[202,204,204]],
+ mai:[[219,218,218,219,219,219],[208,209,210],[213,213,214],[217,217,217],[199,199,199]],
+ toan:[[225,224,216,225,225,225],[222,224,224],[218,217,214],[219,219,219],[218,217,219]]
 };
-const SPRITE_CENTERS={an:116,ngo:118,tran:115,trung:114,giong:121};
+const SPRITE_CENTERS={an:116,ngo:118,tran:115,trung:114,giong:121,chu:119,lac:112,mai:120,toan:113};
 function spriteSize(hero){return (hero==='trung'||hero==='giong')?actorSize*1.18:actorSize}
 function desktopApproach(hero,opponent){return Math.max(0,520-(spriteSize(hero)+spriteSize(opponent))*.24)}
 
@@ -54,7 +58,7 @@ if(!skinSelections||typeof skinSelections!=='object'||Array.isArray(skinSelectio
 if(!Object.hasOwn(heroes,selected))selected='ngo';
 function setSelected(id){if(!Object.hasOwn(heroes,id))return;selected=id;$('hero').value=id;writeStorage(collectionKeys.selected,id);$('selectedHeroName').textContent=heroes[id];}
 setSelected(selected);
-function portrait(id){const el=document.createElement('div');el.className='hero-portrait';el.style.backgroundImage=`url("assets/images/heroes/${id}.png")`;return el}
+function portrait(id){const el=document.createElement('div');el.className='hero-portrait';el.style.backgroundImage=id==='lac'?`url("assets/images/heroes/${id}.png"),radial-gradient(circle at 50% 46%, transparent 30%, #e3ba49 32%, #f6df80 35%, transparent 38%)`:`url("assets/images/heroes/${id}.png")`;if(id==='lac'){el.style.backgroundSize='600% 500%,100% 100%';el.style.backgroundPosition='0 0,center'}return el}
 function drawGallery(id){galleryHero=id;$('skinTitle').textContent=`Trang phục · ${heroes[id]}`;$('heroGrid').replaceChildren();$('skinGrid').replaceChildren();
  for(const heroId of Object.keys(heroes)){const btn=document.createElement('button');btn.type='button';btn.className=`hero-card ${heroId===id?'is-selected':''}`;btn.setAttribute('aria-label',heroes[heroId]);btn.append(portrait(heroId));const label=document.createElement('span');label.textContent=heroes[heroId];btn.append(label);btn.onclick=()=>{setSelected(heroId);drawGallery(heroId)};$('heroGrid').append(btn)}
  for(let index=0;index<3;index++){const unlocked=index===0,btn=document.createElement('button');btn.type='button';btn.className=`skin-card ${!unlocked?'locked':''} ${unlocked&&selected===id?'is-selected':''}`;btn.setAttribute('aria-label',`${index===0?'Skin mặc định':`Skin ${index}`}${unlocked?'':' — chưa mở khóa'}`);btn.append(portrait(id));if(!unlocked){const lock=document.createElement('span');lock.className='lock-icon';lock.textContent='🔒';btn.append(lock)}const label=document.createElement('span');label.textContent=index===0?'Mặc định':`Skin ${index}`;btn.append(label);btn.onclick=()=>{if(!unlocked){$('skinTitle').textContent='Trang phục này chưa được mở khóa';return}skinSelections[id]=0;writeStorage(collectionKeys.skins,JSON.stringify(skinSelections));setSelected(id);$('galleryModal').hidden=true;$('openGallery').focus()};$('skinGrid').append(btn)}
@@ -64,7 +68,7 @@ $('openGallery').onclick=openGallery;$('closeGallery').onclick=()=>{$('galleryMo
 $('openBotMenu').onclick=async()=>{const button=$('openBotMenu');button.disabled=true;try{await prepareVocabulary();clean();setup('bot');players[1]='tran';beginRound()}finally{button.disabled=false}};
 $('openPvpMenu').onclick=()=>{$('pvpMenu').hidden=false;$('closePvpMenu').focus()};$('closePvpMenu').onclick=()=>{clean();$('pvpMenu').hidden=true;status('Chia sẻ mã phòng với đối thủ.');$('openPvpMenu').focus()};
 for(const element of document.querySelectorAll('.simple-corners, .pause-card, .ba-vuong-container, #battle .arena, #battle .question, #battle'))for(const position of ['tl','tr','bl','br']){const c=document.createElement('span');c.className='corner corner-'+position;c.setAttribute('aria-hidden','true');element.append(c)}
-const lobbyCanvas=$('lobbyHero'),lobbyCtx=lobbyCanvas.getContext('2d');function renderLobby(now){if(!$('lobby').hidden&&selected){const im=sprites[selected];lobbyCtx.clearRect(0,0,229,229);if(im?.complete&&im.naturalWidth){const w=im.naturalWidth/6,h=im.naturalHeight/5;const frame=Math.floor(now/166.667)%6;lobbyCtx.imageSmoothingEnabled=false;lobbyCtx.drawImage(im,frame*w,0,w,h,0,0,229,229)}}requestAnimationFrame(renderLobby)}requestAnimationFrame(renderLobby);
+const lobbyCanvas=$('lobbyHero'),lobbyCtx=lobbyCanvas.getContext('2d');function renderLobby(now){if(!$('lobby').hidden&&selected){const im=sprites[selected];lobbyCtx.clearRect(0,0,229,229);if(selected==='lac'){lobbyCtx.save();lobbyCtx.translate(114.5,165);drawDragonHalo(170,now,lobbyCtx);lobbyCtx.restore()}if(im?.complete&&im.naturalWidth){const w=im.naturalWidth/6,h=im.naturalHeight/5;const frame=Math.floor(now/166.667)%6;lobbyCtx.imageSmoothingEnabled=false;lobbyCtx.drawImage(im,frame*w,0,w,h,0,0,229,229)}}requestAnimationFrame(renderLobby)}requestAnimationFrame(renderLobby);
 
 function shuffle(a){const out=[...a];for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out}
 function status(t){$('status').textContent=t}
@@ -79,23 +83,23 @@ function nextQuestion(){
 function beginRound(){if(ended)return;round++;const q=nextQuestion();question=q;send({type:'ROUND',match:matchId,round,question,players,lives,names,map:currentMap,vocabSource,poolSize:questionPool.length||words.length});showRound(round,question,players,lives,names,currentMap,questionPool.length||words.length);if(mode==='bot'){const delay=Math.max(1750,7000-(round-1)*200);$('botSpeed').textContent=`Máy: ${(delay/1000).toFixed(2).replace(/0$/,'')} giây`;schedule('bot',()=>resolveHit(1),delay)}}
 function showRound(n,q,p,l,newNames,newMap,poolSize){round=n;question=q;players=p;lives=l;if(Array.isArray(newNames)&&newNames.length===2)names=newNames.map(v=>String(v).slice(0,18));if(ARENA_MAPS.some(m=>m.id===newMap))currentMap=newMap;displayLives=[...l];locked=false;poses=['idle','idle'];fx=null;preview=null;$('victoryBanner').hidden=true;$('rematchPanel').hidden=true;$('answers').hidden=false;updateHUD();$('word').textContent=q.word;$('meaning').textContent=`(${q.meaning})`;$('battleMessage').textContent='';$('roundStatus').textContent=poolSize===1?'Bộ từ chỉ có một câu phù hợp nên câu sẽ lặp.':'Chọn đáp án đúng trước đối thủ!';$('answers').replaceChildren();q.options.forEach((opt,i)=>{let b=document.createElement('button');b.textContent=opt;b.dataset.key=String(i+1);b.setAttribute('aria-keyshortcuts',String(i+1));b.onclick=()=>answer(i);$('answers').append(b)})}
 function disableAnswers(){locked=true;document.querySelectorAll('#answers button').forEach(b=>b.disabled=true)}
-function answer(i){if(locked||ended||paused)return;combatSound.play('tap_click');const correct=question.options[i]===question.answer;disableAnswers();if(!correct){$('roundStatus').textContent='Sai! Đối thủ phản đòn.';if(mode==='guest')send({type:'MISS',match:matchId,round,choice:i});else resolveHit(1);return}poses[side]='attack';$('roundStatus').textContent='Đã ra đòn!';if(mode==='guest'){const hero=players[side];preview={start:performance.now(),winner:side,hero,impact:CombatAnimator.impactMs(hero)};combatSound.play(hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');send({type:'HIT',match:matchId,round,choice:i,hero,timestamp:performance.now()})}else resolveHit(0)}
+function answer(i){if(locked||ended||paused)return;combatSound.play('tap_click');const correct=question.options[i]===question.answer;disableAnswers();if(!correct){$('roundStatus').textContent='Sai! Đối thủ phản đòn.';if(mode==='guest')send({type:'MISS',match:matchId,round,choice:i});else resolveHit(1);return}poses[side]='attack';$('roundStatus').textContent='Đã ra đòn!';if(mode==='guest'){const hero=players[side];preview={start:performance.now(),winner:side,hero,impact:CombatAnimator.impactMs(hero)};combatSound.play(hero==='chu'?'scroll_cast':(hero==='mai'||hero==='toan')?'fruit_throw':hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');send({type:'HIT',match:matchId,round,choice:i,hero,timestamp:performance.now()})}else resolveHit(0)}
 function resolveHit(winner){if(ended||!question||fx)return;cancelTask('bot');disableAnswers();let loser=1-winner;if(mode==='bot'&&winner===0){score++;}else lives[loser]=Math.max(0,lives[loser]-1);const final=lives[loser]===0;let result={type:'RESULT',match:matchId,round,winner,lives:[...lives],final};send(result);applyResult(result);if(!final)schedule('next',beginRound,1300)}
 function applyResult(result){
  if(result.round!==round||ended||fx)return;
  disableAnswers();lives=[...result.lives];const winner=result.winner,loser=1-winner,hero=players[winner],hitTimes=CombatAnimator.hitTimes(hero);
  const alreadyPlayed=preview&&preview.winner===winner;preview=null;fx={start:performance.now(),winner,final:result.final,hero,impact:hitTimes[0],impacted:false,lastHitAt:0,deadStart:0};
  poses[winner]='attack';poses[loser]='idle';
- if(!alreadyPlayed)combatSound.play(hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');
+ if(!alreadyPlayed)combatSound.play(hero==='chu'?'scroll_cast':(hero==='mai'||hero==='toan')?'fruit_throw':hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');
  $('battleMessage').textContent='';$('roundStatus').textContent='Đòn đánh đang tới…';
  const currentFx=fx;
- if(hero==='an')schedule('secondBow',()=>{if(fx===currentFx)combatSound.play('bow_shot')},250);
+ if(CombatAnimator.isRanged(hero))schedule('secondBow',()=>{if(fx===currentFx)combatSound.play(hero==='chu'?'scroll_cast':(hero==='mai'||hero==='toan')?'fruit_throw':'bow_shot')},250);
  hitTimes.forEach((time,index)=>schedule('impact'+index,()=>{
   if(fx!==currentFx)return;
   currentFx.impacted=true;const wasAlive=displayLives[loser]>0;
   if(wasAlive){if(index===0&&!(mode==='bot'&&loser===1))displayLives[loser]=Math.max(0,displayLives[loser]-1);currentFx.lastHitAt=performance.now();poses[loser]='hit'}
   if(index===0){displayLives=[...result.lives];if(mode==='bot')$('scoreValue').textContent=String(score)}
-  combatSound.play(hero==='an'?'impact':'sword_slash');$('canvas').classList.remove('shake');void $('canvas').offsetWidth;$('canvas').classList.add('shake');updateHUD();
+  combatSound.play(CombatAnimator.isRanged(hero)?'impact':'sword_slash');$('canvas').classList.remove('shake');void $('canvas').offsetWidth;$('canvas').classList.add('shake');updateHUD();
   $('battleMessage').textContent=result.final&&displayLives[loser]===0?(winner===side?'CHIẾN THẮNG!':'THẤT BẠI!'):(winner===side?'TRÚNG ĐÒN!':'ĐỐI THỦ RA ĐÒN!');
   $('roundStatus').textContent=result.final&&displayLives[loser]===0?'Trận đấu kết thúc.':'Chuẩn bị câu tiếp theo…';
   if(wasAlive&&displayLives[loser]===0)schedule('fall',()=>{if(fx!==currentFx)return;poses[loser]='dead';currentFx.deadStart=performance.now();combatSound.play('fall_defeat')},250);
@@ -166,9 +170,13 @@ $('returnLobby').onclick=()=>{$('leave').click()};
 document.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.altKey||event.metaKey||$('battle').hidden||paused||ended||locked)return;if(event.target instanceof HTMLElement&&(event.target.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)))return;if(!/^[1-4]$/.test(event.key))return;const button=$('answers').children[Number(event.key)-1];if(button&&!button.disabled){event.preventDefault();button.click()}});
 $('pause').onclick=()=>setPaused(true);$('resume').onclick=()=>setPaused(false);
 $('leave').onclick=()=>{clean();$('battle').hidden=true;$('lobby').hidden=false;document.body.classList.remove('in-battle');status('Chọn chế độ để bắt đầu.')};
+function drawDragonHalo(size,now,c=ctx){
+ c.save();c.translate(0,-size*.35);const pulse=.88+.12*Math.sin(now/450);c.globalAlpha=.65*pulse;c.strokeStyle='#f6dc70';c.shadowColor='#e4b632';c.shadowBlur=size*.09;c.lineWidth=Math.max(3,size*.025);c.beginPath();c.arc(0,0,size*.37,0,Math.PI*2);c.stroke();c.lineWidth=Math.max(1,size*.009);c.beginPath();c.arc(0,0,size*.32,0,Math.PI*2);c.stroke();for(let i=0;i<12;i++){const a=i*Math.PI/6;c.beginPath();c.moveTo(Math.cos(a)*size*.38,Math.sin(a)*size*.38);c.lineTo(Math.cos(a)*size*.44,Math.sin(a)*size*.44);c.stroke()}c.restore();
+}
 function drawHero(x,y,hero,pose,flip,now,elapsed=0){
  ctx.save();ctx.translate(x,y);ctx.scale(flip?-1:1,1);if(pose==='hit')ctx.translate(-10,0);
  const sheet=sprites[hero],size=spriteSize(hero);
+ if(hero==='lac')drawDragonHalo(size,now);
  if(sheet&&sheet.complete&&sheet.naturalWidth){let row=pose==='dead'?4:pose==='victory'?3:pose==='hit'?2:pose==='attack'?1:0;
  let frame=row===0?Math.floor(now/166.667)%6:Math.min(2,Math.max(0,Math.floor(elapsed/(row===4?160:83.333))));
  ctx.imageSmoothingEnabled=false;if(pose==='hit'&&elapsed<90)ctx.filter='brightness(0) invert(1)';const foot=SPRITE_FEET[hero]?.[row]?.[frame]||229,center=SPRITE_CENTERS[hero]||114.5;ctx.drawImage(sheet,frame*229,row*229,229,229,-size*center/229,-size*.70+(229-foot)*size/229,size,size)
@@ -181,12 +189,12 @@ function render(now){
  const active=fx||preview,t=active?Math.max(0,now-active.start):0;
  for(let i=0;i<2;i++){
   let x=i?740:220,pose=poses[i],elapsed=0;
-  if(active&&i===active.winner){const base=CombatAnimator.displacement(active.hero,t),d=window.innerWidth>=900?base*desktopApproach(active.hero,players[1-i])/510:base;x+=(i?-1:1)*d;pose=active.hero==='an'?(t<500?'attack':'idle'):(t>=120&&t<870?'attack':'idle');elapsed=active.hero==='an'?t%250:Math.max(0,t-120)%250}
+  if(active&&i===active.winner){const base=CombatAnimator.displacement(active.hero,t),d=window.innerWidth>=900?base*desktopApproach(active.hero,players[1-i])/510:base;x+=(i?-1:1)*d;pose=CombatAnimator.isRanged(active.hero)?(t<500?'attack':'idle'):(t>=120&&t<870?'attack':'idle');elapsed=CombatAnimator.isRanged(active.hero)?t%250:Math.max(0,t-120)%250}
   if(fx&&i!==fx.winner){pose=fx.impacted?(fx.final&&fx.deadStart?'dead':'hit'):'idle';elapsed=pose==='dead'?now-fx.deadStart:Math.max(0,now-fx.lastHitAt)}
   const size=spriteSize(players[i]);drawHero(x,floor-size*.3,players[i],pose,!!i,now,elapsed);
  }
  if(active){const target=active.winner?220:740;
- if(active.hero==='an'){for(const launch of [0,250])if(t>=launch&&t<launch+100){const arrow=new Projectile(active.winner?740:220,target,launch);combatAnimator.drawProjectile(arrow.position(t),floor-actorSize*.45,!!active.winner)}}
- if(fx&&fx.hero!=='an'){for(const hit of CombatAnimator.hitTimes(fx.hero))if(t>=hit&&t<hit+165){combatAnimator.drawSlash(target,floor-actorSize*.4,t-hit);if(fx.hero==='giong'){ctx.save();ctx.strokeStyle='#bceeff';ctx.lineWidth=6;ctx.shadowColor='#46baff';ctx.shadowBlur=15;ctx.beginPath();ctx.moveTo(target+40,floor-actorSize);ctx.lineTo(target-16,floor-actorSize*.55);ctx.lineTo(target+8,floor-actorSize*.48);ctx.lineTo(target-28,floor-actorSize*.15);ctx.stroke();ctx.restore()}}}}
+ if(CombatAnimator.isRanged(active.hero)){for(const launch of [0,250])if(t>=launch&&t<launch+100){const arrow=new Projectile(active.winner?740:220,target,launch);combatAnimator.drawProjectile(arrow.position(t),floor-actorSize*.45,!!active.winner,active.hero)}}
+ if(fx&&!CombatAnimator.isRanged(fx.hero)){for(const hit of CombatAnimator.hitTimes(fx.hero))if(t>=hit&&t<hit+165){combatAnimator.drawSlash(target,floor-actorSize*.4,t-hit);if(fx.hero==='giong'){ctx.save();ctx.strokeStyle='#bceeff';ctx.lineWidth=6;ctx.shadowColor='#46baff';ctx.shadowBlur=15;ctx.beginPath();ctx.moveTo(target+40,floor-actorSize);ctx.lineTo(target-16,floor-actorSize*.55);ctx.lineTo(target+8,floor-actorSize*.48);ctx.lineTo(target-28,floor-actorSize*.15);ctx.stroke();ctx.restore()}}}}
  requestAnimationFrame(render)
 }requestAnimationFrame(render);
