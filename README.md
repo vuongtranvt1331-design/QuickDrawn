@@ -1,51 +1,21 @@
-# Quick Drawn — Synonym Shootout
+# Anh Hùng Hào Kiệt — hướng dẫn chạy
 
-A mobile-first Western vocabulary game for Lexical Space and Arcade Hub. Vanilla HTML, CSS and JavaScript; no build step required.
+Chạy `run-local.bat` hoặc mở dự án qua máy chủ web. Năm tướng đều có sẵn; chạm vào nhân vật ở sảnh để đổi tướng. Mỗi tướng có trang phục mặc định và hai ô trang phục phụ đang khóa. Lựa chọn tướng được lưu trong localStorage của trình duyệt.
 
-Play: https://vuongtranvt1331-design.github.io/QuickDrawn/
+Chọn Đấu với máy để thi đấu tính điểm với một đối thủ có máu vô hạn. Máy tự phản đòn sau 7 giây ở câu đầu; thời gian giảm 0,2 giây mỗi câu và không thấp hơn 1,75 giây. Trả lời đúng được 1 điểm, trả lời sai bị đối thủ tấn công ngay. Chọn Song đấu để tạo phòng hoặc nhập mã phòng bốn số. Đấu mạng cần Internet để tải PeerJS và kết nối máy chủ báo hiệu; một số mạng có thể chặn WebRTC vì chưa cấu hình TURN.
 
-## Run locally
+Trong PvP, mỗi bên bắt đầu với 10 cục máu; mỗi lượt giải đúng trừ đúng 1 HP dù hoạt ảnh có nhiều lần chạm. Trả lời sai khiến đối thủ tấn công. Trong PvC người chơi có 10 máu còn máy có máu vô hạn. Mỗi trận mới luân phiên hoàng cung, thao trường, đồng bằng và bến sông Bạch Đằng. Tạm dừng sẽ dừng bộ đếm và hoạt ảnh của hai phía. Khi hết máu, trận đấu kết thúc và hiện bảng Bá Vương cùng cảnh phóng to người thắng.
 
-On Windows, double-click `run-local.bat` (Python 3 required). It checks for a working `python` interpreter before trying `py -3` and opens `http://localhost:8000/`. Keep the server window open; Ctrl+C stops it.
+Chủ phòng phân xử các đòn theo thứ tự đến và đồng bộ kết quả; độ trễ mạng có thể tạo lợi thế cho chủ phòng khi hai người bấm rất gần nhau. Phiên bản luyện từ cũ vẫn ở legacy.html.
 
-If port 8000 is occupied, close the old server and launch again. Alternatively: `run-local.bat --port 8001`.
+## Âm thanh tùy chọn
 
-The equivalent direct command is `python run-local.py`. To serve a shared parent folder containing Arcade Hub and this game, use `python run-local.py --root "C:\your-shared-folder" --port 8000`.
+Đặt các tệp sau vào `assets/audio/`, định dạng `.mp3` hoặc `.wav` (ưu tiên MP3): `shout_attack`, `sword_slash`, `elephant_charge`, `bow_shot`, `fall_defeat`, `tap_click`. Nếu thiếu hoặc không giải mã được tệp, game tổng hợp âm thanh thay thế bằng Web Audio. Âm tổng hợp không phải tiếng người hoặc voi được ghi âm.
 
-IndexedDB is shared only when Arcade Hub and this game use the same browser profile, protocol, hostname and port. Changing the port or switching between `localhost` and `127.0.0.1` changes the data origin. The launcher does not delete or migrate browser data and does not require process-management permissions.
+## Từ vựng Lexical Space
 
-## Structure
+Nhập tài khoản Lexical Space trong sảnh. Game đọc các từ hợp lệ có nghĩa và từ đồng nghĩa từ IndexedDB `LexicalSpaceDB` trên cùng trình duyệt và cùng địa chỉ web (giao thức, tên miền và cổng) với Lexical Space. Trong PvP, chủ phòng nạp bộ từ của mình và gửi từng câu hỏi cho khách. Nếu không tìm thấy bộ từ phù hợp tại địa chỉ hiện tại, game thông báo và dùng bộ từ mẫu. Dữ liệu IndexedDB của một trang không tự chia sẻ sang tên miền khác, kể cả giữa localhost và GitHub Pages.
 
-- `index.html`: page structure and deferred script loading.
-- `css/style.css`: Western UI, responsive layouts, fuse timer and crisp pixel rendering.
-- `js/config.js`: Lexical Space settings and localStorage keys.
-- `js/audio.js`: Web Audio effects and pronunciation/cache providers.
-- `js/firebase-service.js`: existing filename; the data service uses the shared `LexicalSpaceDB` IndexedDB database, not remote Firestore reads.
-- `js/sprite-animator.js`: independent character animators and duel-state coordination.
-- `js/game.js`: questions, scoring, countdown and DOM events; creates and loads each character's animator.
-- `assets/images/`: independent Player/Enemy sprite sheets, desert background and grid metadata.
-- `assets/audio/`: local Wilhelm scream and source attribution.
+## Cập nhật GitHub
 
-## Sprite layout
-
-Each character has a separate PNG: `player_spritesheet.png` or `enemy_spritesheet.png`. Both are 5120×384 pixels, arranged as 40 columns × 3 rows of fixed 128×128 cells. Each active frame has at least 16 pixels of transparent padding.
-
-| Row | Animation | Active frames | Duration | End behavior |
-| --- | --- | --- | --- | --- |
-| 0 | Idle | 40 | 2.8 seconds | Loop |
-| 1 | Shoot | 8 | 0.5 seconds | Hold final frame |
-| 2 | Hit | 8 | 0.5 seconds | Hold final frame |
-
-Unused cells in rows 1 and 2 are transparent. Source rectangles use integer coordinates; canvas smoothing is disabled. Both source sheets face right, and CSS mirrors the Enemy box to face left. `playerAnimator` exclusively draws its image to `playerCanvas`; `enemyAnimator` exclusively draws its image to `enemyCanvas`.
-
-## Game behavior
-
-Student words come from the shared browser `LexicalSpaceDB` / `words` store, filtered by username and `memoryStatus === "mastered"`. Guest play or fewer than four eligible words uses the existing Starter Deck fallback.
-
-The score starts at 10. Correct answers add 1; wrong answers and timeouts deduct 3. Three missed tries end the run. The 25-point celebration continues into further rounds. Question time is `Math.max(1, 10 - (questionNumber - 1) * 0.5)`.
-
-Arcade Hub parameters are preserved: `user`, `mode`, `topic`, `returnUrl`. Best scores remain in localStorage. Google Fonts and pronunciation providers still require Internet access; gunshot effects use Web Audio and the scream is a local MP3.
-
-## GitHub Pages
-
-Publish this repository's root. Keep `index.html`, `css/`, `js/` and `assets/` together. Internal asset paths are relative and work under the repository's Pages subpath. Versioned asset URLs and no-cache headers in the local server prevent mixed older/newer sprite resources.
+Nhấp đúp `CAP-NHAT-GITHUB.bat` để đưa bản mới lên nhánh `main` của kho QuickDrawn. Lần đầu có thể phải đăng nhập GitHub trên trình duyệt; Git for Windows và GitHub CLI (`gh`) giúp đăng nhập tự động. Script không ép đẩy; nếu nhánh từ xa đã thay đổi ngoài bản đang có, script dừng để tránh ghi đè.

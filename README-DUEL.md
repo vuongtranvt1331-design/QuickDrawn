@@ -1,0 +1,21 @@
+# Anh Hùng Hào Kiệt — hướng dẫn chạy
+
+Chạy `run-local.bat` hoặc mở dự án qua máy chủ web. Năm tướng đều có sẵn; chạm vào nhân vật ở sảnh để đổi tướng. Mỗi tướng có trang phục mặc định và hai ô trang phục phụ đang khóa. Lựa chọn tướng được lưu trong localStorage của trình duyệt.
+
+Chọn Đấu với máy để thi đấu tính điểm với một đối thủ có máu vô hạn. Máy tự phản đòn sau 7 giây ở câu đầu; thời gian giảm 0,2 giây mỗi câu và không thấp hơn 1,75 giây. Trả lời đúng được 1 điểm, trả lời sai bị đối thủ tấn công ngay. Chọn Song đấu để tạo phòng hoặc nhập mã phòng bốn số. Đấu mạng cần Internet để tải PeerJS và kết nối máy chủ báo hiệu; một số mạng có thể chặn WebRTC vì chưa cấu hình TURN.
+
+Trong PvP, mỗi bên bắt đầu với 10 cục máu; mỗi lượt giải đúng trừ đúng 1 HP dù hoạt ảnh có nhiều lần chạm. Trả lời sai khiến đối thủ tấn công. Trong PvC người chơi có 10 máu còn máy có máu vô hạn. Mỗi trận mới luân phiên hoàng cung, thao trường, đồng bằng và bến sông Bạch Đằng. Tạm dừng sẽ dừng bộ đếm và hoạt ảnh của hai phía. Khi hết máu, trận đấu kết thúc và hiện bảng Bá Vương cùng cảnh phóng to người thắng.
+
+Chủ phòng phân xử các đòn theo thứ tự đến và đồng bộ kết quả; độ trễ mạng có thể tạo lợi thế cho chủ phòng khi hai người bấm rất gần nhau. Phiên bản luyện từ cũ vẫn ở legacy.html.
+
+## Âm thanh tùy chọn
+
+Đặt các tệp sau vào `assets/audio/`, định dạng `.mp3` hoặc `.wav` (ưu tiên MP3): `shout_attack`, `sword_slash`, `elephant_charge`, `bow_shot`, `fall_defeat`, `tap_click`. Nếu thiếu hoặc không giải mã được tệp, game tổng hợp âm thanh thay thế bằng Web Audio. Âm tổng hợp không phải tiếng người hoặc voi được ghi âm.
+
+## Từ vựng Lexical Space
+
+Nhập tài khoản Lexical Space trong sảnh. Game đọc các từ hợp lệ có nghĩa và từ đồng nghĩa từ IndexedDB `LexicalSpaceDB` trên cùng trình duyệt và cùng địa chỉ web (giao thức, tên miền và cổng) với Lexical Space. Trong PvP, chủ phòng nạp bộ từ của mình và gửi từng câu hỏi cho khách. Nếu không tìm thấy bộ từ phù hợp tại địa chỉ hiện tại, game thông báo và dùng bộ từ mẫu. Dữ liệu IndexedDB của một trang không tự chia sẻ sang tên miền khác, kể cả giữa localhost và GitHub Pages.
+
+## Cập nhật GitHub
+
+Nhấp đúp `CAP-NHAT-GITHUB.bat` để đưa bản mới lên nhánh `main` của kho QuickDrawn. Lần đầu có thể phải đăng nhập GitHub trên trình duyệt; Git for Windows và GitHub CLI (`gh`) giúp đăng nhập tự động. Script không ép đẩy; nếu nhánh từ xa đã thay đổi ngoài bản đang có, script dừng để tránh ghi đè.

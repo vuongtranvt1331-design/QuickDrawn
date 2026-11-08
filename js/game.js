@@ -89,6 +89,21 @@ const state = {
       btnReturnTitle: document.getElementById("btnReturnTitle")
     };
 
+
+    function updateLifeSeals(misses) {
+      const seals = document.getElementById("lifeSeals");
+      if (!seals) return;
+      seals.setAttribute("aria-label", `${Math.max(0, 3 - misses)} sinh mệnh còn lại`);
+      seals.querySelectorAll(".seal").forEach((seal, index) => {
+        seal.classList.toggle("broken", index >= 3 - misses);
+      });
+      if (misses > 0) {
+        dom.duelStage.classList.remove("life-hit");
+        void dom.duelStage.offsetWidth;
+        dom.duelStage.classList.add("life-hit");
+      }
+    }
+
     /*************************************************************************
      * 4. USERNAME RESOLUTION & LOCAL-FIRST REPOSITORY
      *************************************************************************/
@@ -446,6 +461,7 @@ const state = {
 
       dom.hudScore.textContent = String(state.score);
       if (dom.hudMisses) dom.hudMisses.textContent = "0/3";
+      updateLifeSeals(0);
       dom.hudUsername.textContent = state.activeUsername;
 
       dom.titleScreen.classList.add("hidden");
@@ -633,6 +649,7 @@ const state = {
         // Missed try: increment counter and deduct points
         state.missedTries += 1;
         if (dom.hudMisses) dom.hudMisses.textContent = `${state.missedTries}/3`;
+        updateLifeSeals(state.missedTries);
 
         state.score = Math.max(0, state.score - 3);
         dom.hudScore.textContent = String(state.score);
@@ -682,6 +699,7 @@ const state = {
       state.attemptedCount += 1;
       state.missedTries += 1;
       if (dom.hudMisses) dom.hudMisses.textContent = `${state.missedTries}/3`;
+        updateLifeSeals(state.missedTries);
 
       state.score = Math.max(0, state.score - 3);
       dom.hudScore.textContent = String(state.score);

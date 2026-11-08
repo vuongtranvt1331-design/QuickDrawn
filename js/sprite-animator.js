@@ -134,3 +134,23 @@ class SpriteAnimator {
 
 function triggerPlayerWinState() { duelAnimator.setState('state-player-win'); }
 function triggerEnemyWinState() { duelAnimator.setState('state-enemy-win'); }
+
+// Lightweight effect models keep timing independent from the render frame rate.
+class SilverSlashEffect {
+  static frameAt(elapsed) { const frame=Math.floor(elapsed/55);return frame>=0&&frame<3?frame:-1; }
+}
+class Projectile {
+  constructor(start, target, launchMs=0) { this.start=start;this.target=target;this.launchMs=launchMs; }
+  position(elapsed) { const progress=Math.max(0,Math.min(1,(elapsed-this.launchMs)/100));return this.start+(this.target-this.start)*progress; }
+}
+
+// Rendering timings shared by the live duel and its combat logic.
+class CombatAnimator {
+  constructor(ctx) { this.ctx=ctx;this.slash=new Image();this.slash.src='assets/images/silver_slash_vfx.png';this.arrow=new Image();this.arrow.src='assets/images/arrow_projectile.png'; }
+  static hitTimes(hero) { return hero==='an'?[100,350]:[120,370,620]; }
+  static hitCount(hero) { return this.hitTimes(hero).length; }
+  static impactMs(hero) { return this.hitTimes(hero)[0]; }
+  static displacement(hero,t) { if(hero==='an')return 0;if(t<120)return Math.min(1,t/120)*510;if(t<870)return 510;if(t<990)return 510*(1-(t-870)/120);return 0; }
+  drawSlash(x,y,elapsed) { const frame=SilverSlashEffect.frameAt(elapsed);if(frame<0)return;const c=this.ctx,img=this.slash;if(img.complete&&img.naturalWidth){c.drawImage(img,frame*img.naturalWidth/3,0,img.naturalWidth/3,img.naturalHeight,x-78,y-100,156,156)}else{c.save();c.strokeStyle='#f7ffff';c.lineWidth=11;c.shadowColor='#b8d9e8';c.shadowBlur=15;c.beginPath();c.moveTo(x-55,y+30);c.quadraticCurveTo(x,y-80,x+55,y-80);c.stroke();c.restore()} }
+  drawProjectile(x,y,flip) {const c=this.ctx;c.save();c.translate(x,y);c.scale(flip?-1:1,1);const img=this.arrow;if(img.complete&&img.naturalWidth)c.drawImage(img,-60,-22,120,44);else{c.strokeStyle='#ffe06a';c.lineWidth=5;c.beginPath();c.moveTo(-45,0);c.lineTo(45,0);c.lineTo(30,-8);c.moveTo(45,0);c.lineTo(30,8);c.stroke()}c.restore()}
+}

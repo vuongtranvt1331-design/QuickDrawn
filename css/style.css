@@ -1366,3 +1366,40 @@
   #duelStage { max-height: 125px; }
   .cowboy-box { max-width: 112px; bottom: -12px; }
 }
+/* Son lacquer, gold and ivory palette */
+:root {
+  --bg-outer:#1A242F; --card-cream:#F4E8C1; --card-border-orange:#8B1E1E;
+  --wood-dark:#421515; --wood-mid:#8B1E1E; --wood-light:#B22222;
+  --word-blue-bg:#F4E8C1; --word-blue-border:#8B1E1E;
+  --word-blue-highlight:#F6E27A; --word-navy-text:#4a1717; --meaning-blue-text:#70472b;
+  --btn-gold-bg:#EADBB0; --btn-gold-border:#D4AF37; --btn-gold-shadow:#771b1b;
+  --btn-gold-highlight:#F6E27A; --btn-text-dark:#491818;
+}
+html, body { background:radial-gradient(circle at center,#38414a,#1A242F 75%); }
+.arcade-card { border-color:#8B1E1E; border-radius:12px; box-shadow:0 14px 36px #111a, inset 0 0 0 3px #D4AF37; }
+#duelStage, .word-card {
+  border:5px solid #8B1E1E; border-radius:3px;
+  box-shadow:inset 0 0 0 2px #D4AF37, 0 0 0 2px #D4AF37;
+}
+#duelStage::after, .word-card::after {
+  content:""; position:absolute; inset:4px; z-index:5; pointer-events:none;
+  background:
+    linear-gradient(#D4AF37,#D4AF37) left top / 28px 2px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) left top / 2px 20px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) right top / 28px 2px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) right top / 2px 20px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) left bottom / 28px 2px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) left bottom / 2px 20px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) right bottom / 28px 2px no-repeat,
+    linear-gradient(#D4AF37,#D4AF37) right bottom / 2px 20px no-repeat;
+}
+.word-card::before { display:none; }
+.answer-btn, .header-btn { border-color:#D4AF37; }
+.answer-btn:hover:not(:disabled) { box-shadow:0 0 14px #D4AF37, inset 0 0 0 1px #F6E27A; }
+.life-seals { position:absolute; z-index:6; top:8px; left:10%; display:flex; gap:4px; }
+.seal { display:grid; place-items:center; width:21px; height:21px; border:2px solid #F6E27A; border-radius:50%; background:#B22222; color:#F6E27A; font:bold 12px serif; box-shadow:0 1px 4px #1A242F; }
+.seal.broken { color:#aaa; border-color:#777; background:linear-gradient(125deg,#383838 40%,#aaa 41%,#555 45%,#333 48%); animation:seal-break .35s ease-out; }
+.life-hit { animation:life-shake .3s ease-out; }
+@keyframes seal-break { 50% { transform:scale(1.35) rotate(18deg); } }
+@keyframes life-shake { 25% { transform:translateX(-3px); } 50% { transform:translateX(3px); } 75% { transform:translateX(-2px); } }
+@media (prefers-reduced-motion:reduce) { .seal.broken,.life-hit { animation:none; } }

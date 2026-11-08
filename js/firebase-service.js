@@ -52,8 +52,8 @@
       return normalizeText(str).toLowerCase();
     }
 
-    function isEligibleMasteredWord(rawDoc) {
-      if (rawDoc.memoryStatus !== "mastered") return null;
+    function isEligibleMasteredWord(rawDoc, masteredOnly = true) {
+      if (masteredOnly && rawDoc.memoryStatus !== "mastered") return null;
 
       // 1. Valid English word
       const word = normalizeText(rawDoc.word);
@@ -100,7 +100,7 @@
     }
 
 
-    async function tryLoadFromIndexedDB(expectedUser) {
+    async function tryLoadFromIndexedDB(expectedUser, options = {}) {
       return new Promise((resolve) => {
         try {
           if (!window.indexedDB) return resolve({ words: [], masteredCount: 0, allUsers: [] });
@@ -131,7 +131,7 @@
                 const username = normalizeText(item.username);
                 if (username) userSet.add(username);
                 if (!owner || normalizeOwner(username) !== owner) continue;
-                const validated = isEligibleMasteredWord(item);
+                const validated = isEligibleMasteredWord(item, options.masteredOnly !== false);
                 if (validated) matchedMastered.push(validated);
               }
 
