@@ -196,6 +196,7 @@ class WesternSoundEngine {
         this.isSpeaking = false;
         this.preloadingSet = new Set();
         this.preferredVoice = null;
+        this.playbackToken = 0;
         this.initVoices();
       }
 
@@ -220,6 +221,7 @@ class WesternSoundEngine {
       }
 
       stop() {
+        this.playbackToken++;
         if (this.activeAudio) {
           try {
             this.activeAudio.pause();
@@ -344,16 +346,18 @@ class WesternSoundEngine {
       }
 
       async pronounce(word) {
+        this.stop();
+        const requestToken = this.playbackToken;
         if (sound.muted) return;
         const clean = (word || "").trim().toLowerCase();
         if (!clean) return;
 
-        this.stop();
         this.isSpeaking = true;
         dom.btnWordSpeaker?.classList.add("speaking");
 
         try {
           const resolved = await this.resolveAudioForWord(clean);
+          if (requestToken !== this.playbackToken) return;
           if (sound.muted) {
             this.isSpeaking = false;
             dom.btnWordSpeaker?.classList.remove("speaking");
@@ -367,35 +371,39 @@ class WesternSoundEngine {
             this.activeAudio = audio;
 
             audio.onended = () => {
-              if (this.activeAudio === audio) {
+              if (requestToken === this.playbackToken && this.activeAudio === audio) {
                 this.isSpeaking = false;
                 this.activeAudio = null;
                 dom.btnWordSpeaker?.classList.remove("speaking");
               }
             };
             audio.onerror = () => {
-              if (this.activeAudio === audio) {
+              if (requestToken === this.playbackToken && this.activeAudio === audio) {
                 this.activeAudio = null;
-                this.speakSynthesisFallback(clean);
+                this.speakSynthesisFallback(clean, requestToken);
               }
             };
 
             const playPromise = audio.play();
             if (playPromise && typeof playPromise.catch === "function") {
               playPromise.catch(() => {
-                this.speakSynthesisFallback(clean);
+                if (requestToken !== this.playbackToken || this.activeAudio !== audio) return;
+                this.activeAudio = null;
+                this.speakSynthesisFallback(clean, requestToken);
               });
             }
             return;
           }
 
-          this.speakSynthesisFallback(clean);
+          this.speakSynthesisFallback(clean, requestToken);
         } catch (_) {
-          this.speakSynthesisFallback(clean);
+          if (requestToken !== this.playbackToken) return;
+          this.speakSynthesisFallback(clean, requestToken);
         }
       }
 
-      speakSynthesisFallback(text) {
+      speakSynthesisFallback(text, requestToken = this.playbackToken) {
+        if (requestToken !== this.playbackToken) return;
         if (sound.muted) {
           this.isSpeaking = false;
           dom.btnWordSpeaker?.classList.remove("speaking");
@@ -409,10 +417,12 @@ class WesternSoundEngine {
             u.rate = 0.95;
             if (this.preferredVoice) u.voice = this.preferredVoice;
             u.onend = () => {
+              if (requestToken !== this.playbackToken) return;
               this.isSpeaking = false;
               dom.btnWordSpeaker?.classList.remove("speaking");
             };
             u.onerror = () => {
+              if (requestToken !== this.playbackToken) return;
               this.isSpeaking = false;
               dom.btnWordSpeaker?.classList.remove("speaking");
             };

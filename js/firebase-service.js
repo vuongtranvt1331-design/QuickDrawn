@@ -124,6 +124,7 @@
               const normalizeOwner = exactProfile ? normalizeText : normalizeKey;
               const owner = normalizeOwner(expectedUser);
               const matchedMastered = [];
+              let masteredCount = 0;
               const userSet = new Set();
 
               for (const item of all) {
@@ -132,12 +133,15 @@
                 if (username) userSet.add(username);
                 if (!owner || normalizeOwner(username) !== owner) continue;
                 const validated = isEligibleMasteredWord(item, options.masteredOnly !== false);
-                if (validated) matchedMastered.push(validated);
+                if (validated) {
+                  matchedMastered.push(validated);
+                  if (item.memoryStatus === "mastered") masteredCount++;
+                }
               }
 
               resolve({
                 words: matchedMastered,
-                masteredCount: matchedMastered.length,
+                masteredCount,
                 allUsers: Array.from(userSet)
               });
             };
