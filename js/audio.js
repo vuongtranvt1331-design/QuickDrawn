@@ -450,7 +450,7 @@ class CombatAudio {
   constructor() { this.ctx=null; this.buffers={}; this.loading={}; this.muted=false; }
   unlock() {
     try { const AC=window.AudioContext||window.webkitAudioContext; if(!this.ctx&&AC)this.ctx=new AC(); if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume().catch(()=>{}); } catch (_) {}
-    for(const name of ['shout_attack','sword_slash','elephant_charge','bow_shot','scroll_cast','fruit_throw','fall_defeat','tap_click']) this.load(name);
+    for(const name of ['shout_attack','sword_slash','elephant_charge','bow_shot','scroll_cast','fruit_throw','fall_defeat','tap_click','teacher_vuong_punch','teacher_vuong_slap']) this.load(name);
   }
   load(name) {
     if(this.loading[name])return;

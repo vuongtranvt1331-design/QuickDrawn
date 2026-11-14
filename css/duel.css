@@ -47,3 +47,32 @@ body.in-battle .shell>header{display:none}
 .standing-board h2{margin:0 0 5px;color:#F3D060;font-size:1.1rem;text-align:center}.standing-board p{margin:7px 0;font-size:.75rem}.standing-board .standing-survival{text-align:center;color:#f4e8c1}.standing-board .note{color:#f4e8c1}
 .standing-scroll{overflow-x:auto;max-width:100%}.standing-board table{width:100%;border-collapse:collapse;font-size:.76rem}.standing-board caption{text-align:left;font-size:.68rem;padding:6px 0;color:#f4e8c1}.standing-board th,.standing-board td{padding:8px 6px;border-bottom:1px solid #d4af3733;text-align:right;white-space:nowrap}.standing-board th{color:#F3D060}.standing-board th:nth-child(2),.standing-board td:nth-child(2){text-align:left;white-space:normal;overflow-wrap:anywhere;min-width:85px;max-width:170px}.standing-board .is-current-profile{background:#8b1e1e66;box-shadow:inset 3px 0 #F3D060}.standing-board .standing-wins{color:#34d399}.standing-board .standing-losses{color:#fb7185}.standing-board .standing-elo{color:#F3D060;font-weight:900}.standing-deck{display:inline-block;padding:2px 5px;border:1px solid #d4af3766;border-radius:4px;color:#f4e8c1;font-size:.7rem}
 .rematch-panel .standing-result{color:#F3D060;background:#1a242f;padding:6px 8px;border-radius:4px;font-weight:700}.rematch-panel .standing-result[hidden]{display:none}.score-panel [data-pvc-countdown]{display:block;margin-left:0;text-align:center;font-variant-numeric:tabular-nums}
+
+/* PvP waiting room; existing battle and lobby cascade remains unchanged. */
+.pvp-room[hidden]{display:none}.pvp-room{margin:14px 0;padding:10px;background:#1a242f;color:#f4e8c1;border:1px solid #d4af37;border-radius:4px}.pvp-room h3{font-size:.85rem;color:#F3D060;margin:0 0 8px}.pvp-room-players{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.pvp-room-player{display:flex;align-items:center;flex-direction:column;gap:5px;padding:8px 4px;min-width:0;border:1px solid #d4af3755}.pvp-room-player.is-you{border-color:#F3D060;background:#8b1e1e44}.pvp-room-player strong{width:100%;font-size:.9rem;overflow-wrap:anywhere}.pvp-room-player small,.pvp-room-player span{font-size:.65rem;overflow-wrap:anywhere}.pvp-room-player b{font-size:.7rem;color:#f4e8c1}.pvp-room-player b.is-ready{color:#34d399}.pvp-room-portrait{width:100%;max-width:104px;flex:none}.pvp-ready-button{display:block;width:100%;margin-top:10px;min-height:46px}
+
+/* Gold UI atlas skin: added after the existing cascade, with native text/events intact. */
+html.ui-sprites-ready button{
+ --ui-normal:var(--ui-red-normal);--ui-hover:var(--ui-red-hover);--ui-pressed:var(--ui-red-pressed);--ui-disabled:var(--ui-red-disabled);--ui-face:var(--ui-normal);
+ border-style:solid;border-width:2px;border-color:transparent;border-radius:0;
+ border-image-source:var(--ui-face);border-image-slice:44 fill;border-image-width:14px;border-image-outset:0;border-image-repeat:stretch;
+ background:transparent;box-shadow:none;color:#fff4cf;text-shadow:0 1px 1px #30100d;image-rendering:pixelated;
+}
+html.ui-sprites-ready button:hover:not(:disabled){--ui-face:var(--ui-hover);box-shadow:none}
+html.ui-sprites-ready button:active:not(:disabled){--ui-face:var(--ui-pressed)}
+html.ui-sprites-ready button:disabled{--ui-face:var(--ui-disabled);opacity:.8;text-shadow:none}
+html.ui-sprites-ready button:focus-visible{outline:2px solid #fff1af;outline-offset:3px}
+html.ui-sprites-ready :is(button.secondary,#answers button,#host,#join){--ui-normal:var(--ui-navy-normal);--ui-hover:var(--ui-navy-hover);--ui-pressed:var(--ui-navy-pressed);--ui-disabled:var(--ui-navy-disabled)}
+html.ui-sprites-ready :is(.pause-btn,.close-modal){--ui-normal:var(--ui-icon-normal);--ui-hover:var(--ui-icon-hover);--ui-pressed:var(--ui-icon-pressed);--ui-disabled:var(--ui-icon-disabled);border-image-slice:40 fill;border-image-width:7px}
+html.ui-sprites-ready :is(.hero-display,.hero-card,.skin-card){--ui-normal:var(--ui-card-normal);--ui-hover:var(--ui-card-hover);--ui-pressed:var(--ui-card-pressed);--ui-disabled:var(--ui-card-disabled);border-image-slice:72 fill;border-image-width:12px}
+html.ui-sprites-ready .hero-display{padding:10px 14px 16px;color:#651f1a;text-shadow:none}
+html.ui-sprites-ready :is(.hero-card,.skin-card){padding:8px;background-color:#1a242f;color:#f4e8c1}
+html.ui-sprites-ready :is(.hero-card,.skin-card).is-selected{--ui-normal:var(--ui-card-hover);outline:1px solid #d4af37;outline-offset:-2px}
+html.ui-sprites-ready .skin-card.locked{--ui-normal:var(--ui-card-disabled);--ui-hover:var(--ui-card-disabled);--ui-pressed:var(--ui-card-disabled)}
+html.ui-sprites-ready .standing-board{border:2px solid transparent;border-radius:0;border-image-source:var(--ui-board-normal);border-image-slice:170;border-image-width:28px;border-image-outset:0;border-image-repeat:stretch;padding:28px 22px 23px}
+html.ui-sprites-ready .standing-board:hover{border-image-source:var(--ui-board-hover)}
+html.ui-sprites-ready .standing-board h2{color:#ffe890;text-shadow:0 1px 0 #6b360a,0 0 8px #d4af3740;letter-spacing:.025em}
+@media(max-width:420px){html.ui-sprites-ready .standing-board{border-image-width:24px;padding:25px 17px 20px}html.ui-sprites-ready :is(.hero-card,.skin-card){padding:6px}}
+
+/* Teacher Vương: live text stays upright even when the enemy sprite is mirrored. */
+.teacher-taunt[hidden]{display:none}.teacher-taunt{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,-100%);max-width:min(190px,54vw);padding:7px 11px;background:#fff4cf;color:#6b1e1e;border:2px solid #d4af37;border-radius:9px;box-shadow:0 3px 0 #53201c88;font-size:clamp(.75rem,2.5vw,.95rem);font-weight:900;line-height:1.25;text-align:center;white-space:nowrap}.teacher-taunt::after{content:"";position:absolute;left:50%;bottom:-7px;width:10px;height:10px;background:#fff4cf;border-right:2px solid #d4af37;border-bottom:2px solid #d4af37;transform:translateX(-50%) rotate(45deg)}
