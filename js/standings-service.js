@@ -36,7 +36,7 @@ class SharedStandingService{
    const row=current.exists?current.data():{id:profile.id,name:profile.name,elo:1000,wins:0,losses:0,matchesPlayed:0,maxDeckSize:0,bestSurvivalScore:0};
    if(!Number.isSafeInteger(row.elo)||row.elo<100||!['wins','losses','matchesPlayed','maxDeckSize'].every(key=>Number.isSafeInteger(row[key])&&row[key]>=0))throw new Error('Invalid remote standing');
    const elo=Math.max(100,row.elo+result.deltaElo),win=result.outcome==='win',time=firebase.firestore.FieldValue.serverTimestamp();
-   const player={id:profile.id,username:profile.name,name:profile.name,gameId:'quickdrawn',elo,wins:row.wins+(win?1:0),losses:row.losses+(win?0:1),matchesPlayed:row.matchesPlayed+1,maxDeckSize:Math.max(row.maxDeckSize,result.deckSize),bestSurvivalScore:Math.max(row.bestSurvivalScore||0,result.mode==='pvc'?result.correctCount:0),updatedAt:time};
+   const player={id:profile.id,username:profile.name,name:profile.name,gameId:'quickdrawn',elo,wins:row.wins+(win?1:0),losses:row.losses+(result.outcome==='loss'?1:0),matchesPlayed:row.matchesPlayed+1,maxDeckSize:Math.max(row.maxDeckSize,result.deckSize),bestSurvivalScore:Math.max(row.bestSurvivalScore||0,result.mode==='pvc'?result.correctCount:0),updatedAt:time};
    transaction.set(ref,player,{merge:true});transaction.set(event,{...result,gameId:'quickdrawn',username:profile.name,serverEloBefore:row.elo,serverEloAfter:elo,syncedAt:time});
   }));this.seen.add(key);
  }

@@ -81,7 +81,7 @@ function latestStandingSnapshot(profile){const row=readStandingStore().players.f
 function standingDeckWeight(deckSize){if(!Number.isSafeInteger(deckSize)||deckSize<1)throw new Error('Invalid match deck size');return deckSize<15?.6:deckSize<30?1:deckSize<60?1.25:1.5}
 function standingPvCTarget(elo){return Math.max(5,8+Math.floor((elo-1000)/100))}
 function calculateStandingDelta(mode,player,opponentElo,actualScore,deckSize,correctCount=0,targetCorrect=standingPvCTarget(player.elo)){
- const weight=standingDeckWeight(deckSize);
+ const weight=mode==='chess'?1:standingDeckWeight(deckSize);
  if(mode==='pvc'){const bonus=Math.min(10,Math.max(0,correctCount-targetCorrect));return actualScore===1?Math.round((12+bonus)*weight):-Math.round(10/weight)}
  const expected=1/(1+Math.pow(10,(opponentElo-player.elo)/400)),k=player.matchesPlayed<30?32:16;
  return Math.round(k*(actualScore-expected)*weight);
@@ -93,7 +93,7 @@ function renderStandingBoard(){
  body.replaceChildren();
  const rows=sortStandingPlayers(sharedStandingRows(store));
  if(!rows.length){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=6;cell.textContent='Chưa có trận đấu hoàn tất.';row.append(cell);body.append(row)}
- rows.forEach((player,index)=>{const row=document.createElement('tr');if(player.id===activeId){row.className='is-current-profile';row.setAttribute('aria-current','true')}const values=['#'+(index+1),player.name,player.wins,player.losses,player.maxDeckSize,player.elo];values.forEach((value,column)=>{const cell=document.createElement('td');if(column===2)cell.className='standing-wins';if(column===3)cell.className='standing-losses';if(column===5)cell.className='standing-elo';if(column===4){const badge=document.createElement('span');badge.className='standing-deck';badge.textContent=value+' từ';cell.append(badge)}else cell.textContent=String(value);row.append(cell)});body.append(row)});
+ rows.forEach((player,index)=>{const row=document.createElement('tr');if(player.id===activeId){row.className='is-current-profile';row.setAttribute('aria-current','true')}const values=['#'+(index+1),player.name,player.elo,player.wins,player.losses,player.maxDeckSize];values.forEach((value,column)=>{const cell=document.createElement('td');if(column===3)cell.className='standing-wins';if(column===4)cell.className='standing-losses';if(column===2)cell.className='standing-elo';if(column===5){const badge=document.createElement('span');badge.className='standing-deck';badge.textContent=value+' từ';cell.append(badge)}else cell.textContent=String(value);row.append(cell)});body.append(row)});
  const note=document.querySelector('[data-standing-note]');if(note)note.textContent=standingUnsaved||standingReadOnly?'Không lưu được vào thiết bị; kết quả chỉ giữ tạm trong phiên này.':sharedStandingNotice();
  const best=document.querySelector('[data-standing-survival]'),current=store.players.find(row=>row.id===(activeId||localStandingProfile().id));if(best)best.textContent='Kỷ lục sinh tồn: '+(current?.bestSurvivalScore||0)+' câu đúng';
 }
@@ -113,7 +113,7 @@ function persistStandingResult(match,actualScore,correctCount){
  if(match.mode==='pvc')actualScore=correctCount>=targetCorrect?1:0;
  const deltaElo=calculateStandingDelta(match.mode,previous,match.opponent?.elo||1000,actualScore,match.deckSize,correctCount,targetCorrect),elo=Math.max(100,previous.elo+deltaElo),finishedAt=new Date().toISOString();
  const player={...previous,name:match.profile.name,elo,wins:previous.wins+(actualScore===1?1:0),losses:previous.losses+(actualScore===0?1:0),matchesPlayed:previous.matchesPlayed+1,maxDeckSize:Math.max(previous.maxDeckSize,match.deckSize),bestSurvivalScore:Math.max(previous.bestSurvivalScore||0,match.mode==='pvc'?correctCount:0),updatedAt:finishedAt};
- const result={id,matchId:match.id,playerId:player.id,opponentId:match.opponent?.id||null,mode:match.mode,outcome:actualScore===1?'win':'loss',deckSize:match.deckSize,deckWeight:standingDeckWeight(match.deckSize),correctCount,eloBefore:previous.elo,eloAfter:elo,deltaElo,appliedDeltaElo:elo-previous.elo,finishedAt};
+ const result={id,matchId:match.id,playerId:player.id,opponentId:match.opponent?.id||null,mode:match.mode,outcome:actualScore===1?'win':actualScore===0?'loss':'draw',deckSize:match.deckSize,deckWeight:match.mode==='chess'?1:standingDeckWeight(match.deckSize),correctCount,eloBefore:previous.elo,eloAfter:elo,deltaElo,appliedDeltaElo:elo-previous.elo,finishedAt};
  store.players=store.players.filter(row=>row.id!==player.id);store.players.push(player);store.matches.push(result);store.pendingSync=[...new Set([...store.pendingSync,player.id])];store.updatedAt=finishedAt;if(player.id.startsWith('guest-'))store.guestId=player.id;writeStandingStore(store);return result;
 }
 function completeStandingMatch(actualScore){
@@ -429,3 +429,18 @@ window.addEventListener('focus',renderStandingBoard);
 
 document.querySelector('[data-pvp-ready]')?.addEventListener('click',markPvPRoomReady);
 startSharedStandings();
+
+// Chess shares the existing identity and standings boundary without combat state.
+window.QuickDrawnChessBridge=Object.freeze({
+ clean,uid:standingUid,portrait,heroName:id=>heroes[id],selectedHero:()=>$('hero').value,
+ validHero:id=>typeof id==='string'&&Object.hasOwn(heroes,id),validProfile:isStandingSnapshot,
+ sound:()=>combatSound.play('tap_click'),refresh:renderStandingBoard,
+ latest:latestStandingSnapshot,
+ async profile(){const epoch=navigationEpoch,name=accountName();await hydrateSharedStanding(name,epoch);return epoch===navigationEpoch&&name===accountName()?standingSnapshot(localStandingProfile()):null},
+ finish(descriptor,localSide,actualScore){
+  if(!descriptor||typeof descriptor.id!=='string'||!/^chess-[a-z0-9-]+$/i.test(descriptor.id)||!isPacketArray(descriptor.profiles,2,isStandingSnapshot)||![0,1].includes(localSide)||![0,.5,1].includes(actualScore))return Promise.reject(new Error('Invalid chess result'));
+  const match={id:descriptor.id,mode:'chess',deckSize:0,profile:{...descriptor.profiles[localSide]},opponent:{...descriptor.profiles[1-localSide]}};
+  const save=()=>{const write=()=>persistStandingResult(match,actualScore,0);return typeof navigator!=='undefined'&&navigator.locks?.request?navigator.locks.request(STANDINGS_KEY,write).catch(write):write()};
+  const result=standingWrites.then(save,save);standingWrites=result.catch(()=>{});result.then(()=>{syncSharedStandings();renderStandingBoard()}).catch(()=>{standingUnsaved=true;renderStandingBoard()});return result;
+ }
+});
