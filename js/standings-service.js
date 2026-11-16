@@ -40,4 +40,27 @@ class SharedStandingService{
    transaction.set(ref,player,{merge:true});transaction.set(event,{...result,gameId:'quickdrawn',username:profile.name,serverEloBefore:row.elo,serverEloAfter:elo,syncedAt:time});
   }));this.seen.add(key);
  }
+ async result(id,matchId){const doc=await this.deadline(this.ref(id).collection('results').doc(matchId).get());return doc.exists?doc.data():null}
+ async syncPair(results,profiles){
+  if(!Array.isArray(results)||results.length!==2||!Array.isArray(profiles)||profiles.length!==2||profiles[0].id===profiles[1].id||results[0].matchId!==results[1].matchId||results[0].mode!==results[1].mode||results[0].deckSize!==results[1].deckSize||results[0].deckWeight!==results[1].deckWeight||(results[0].outcome==='draw'?results[1].outcome!=='draw':results[0].outcome===results[1].outcome)||results.some((r,i)=>r.playerId!==profiles[i].id||r.opponentId!==profiles[1-i].id||!['pvp','chess'].includes(r.mode)||!['win','loss','draw'].includes(r.outcome)||!Number.isSafeInteger(r.deltaElo)))throw Error('Invalid paired result');
+  if(!(await Promise.all(profiles.map(p=>this.profile(p.name)))).every(Boolean))throw Error('Unknown profile');
+  const refs=profiles.map(p=>this.ref(p.id)),events=refs.map(ref=>ref.collection('results').doc(results[0].matchId));
+  await this.deadline(this.db.runTransaction(async tx=>{
+   const docs=await Promise.all([...events,...refs].map(ref=>tx.get(ref))),saved=docs.slice(0,2),existing=saved.findIndex(s=>s.exists);
+   const actual=r=>r.outcome==='win'?1:r.outcome==='draw'?.5:0;
+   for(let i=0;i<2;i++){
+    if(saved[i].exists)continue;
+    const row=docs[i+2].exists?docs[i+2].data():{id:profiles[i].id,name:profiles[i].name,elo:1000,wins:0,losses:0,matchesPlayed:0,maxDeckSize:0,bestSurvivalScore:0};
+    if(!Number.isSafeInteger(row.elo)||row.elo<100||!['wins','losses','matchesPlayed','maxDeckSize'].every(k=>Number.isSafeInteger(row[k])&&row[k]>=0))throw Error('Invalid remote standing');
+    let result={...results[i]};
+    // A previously committed event wins; fill only the missing complementary side.
+    if(existing>=0){const score=1-actual(saved[existing].data()),weight=result.mode==='chess'?1:result.deckWeight,k=row.matchesPlayed<30?32:16,expected=1/(1+Math.pow(10,(profiles[1-i].elo-profiles[i].elo)/400));result.outcome=score===1?'win':score===0?'loss':'draw';result.deltaElo=Math.round(k*(score-expected)*weight)}
+    const elo=Math.max(100,row.elo+result.deltaElo),time=firebase.firestore.FieldValue.serverTimestamp();
+    result={...result,eloBefore:row.elo,eloAfter:elo,appliedDeltaElo:elo-row.elo};
+    const player={id:profiles[i].id,username:profiles[i].name,name:profiles[i].name,gameId:'quickdrawn',elo,wins:row.wins+(result.outcome==='win'?1:0),losses:row.losses+(result.outcome==='loss'?1:0),matchesPlayed:row.matchesPlayed+1,maxDeckSize:Math.max(row.maxDeckSize,result.deckSize),bestSurvivalScore:row.bestSurvivalScore||0,updatedAt:time};
+    tx.set(refs[i],player,{merge:true});tx.set(events[i],{...result,gameId:'quickdrawn',username:profiles[i].name,serverEloBefore:row.elo,serverEloAfter:elo,syncedAt:time});
+   }
+  }));
+ }
+
 }

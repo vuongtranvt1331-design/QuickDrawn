@@ -22,12 +22,79 @@ document.addEventListener('pointerdown',()=>combatSound.unlock(),{passive:true})
 const ARENA_MAPS=[{id:'palace',src:'assets/images/map_palace.png'},{id:'arena',src:'assets/images/map_arena.png'},{id:'plains',src:'assets/images/map_plains.png'},{id:'water_river',src:'assets/images/ancient_battlefield.png'}];
 const mapImages=Object.fromEntries(ARENA_MAPS.map(m=>{const image=new Image();image.src=m.src;return [m.id,image]}));
 let mapCursor=-1,currentMap='water_river',names=['P1','P2'],paused=false,pausedAt=0,actorSize=245;const scheduled=new Map(),pendingMessages=[];
+// Rejoin normalizes to an authoritative stable round; no queued hit is replayed.
+let duelDecision=null;
+async function finishDuelDecision(actualScore){
+ const match=standingMatch;if(!match||match.mode!=='pvp')throw Error('No duel match');
+ ended=true;locked=true;clearTasks();fx=null;preview=null;duelDecision={matchId:match.id,hostScore:side===0?actualScore:1-actualScore};
+ disableAnswers();$('victoryBanner').hidden=true;$('battleMessage').textContent=actualScore===1?'CHIẾN THẮNG':actualScore===0?'THẤT BẠI':'HÒA';$('roundStatus').textContent='Chốt kết quả do đối thủ mất kết nối.';showRematchPanel();match.completed=true;
+ const descriptor={id:match.id,mode:'pvp',deckSize:match.deckSize,profiles:side===0?[match.profile,match.opponent]:[match.opponent,match.profile]};
+ const promise=finishStandingPair(descriptor,side,actualScore);match.savePromise=promise;const result=await promise,canonical=result.outcome==='win'?1:result.outcome==='draw'?.5:0;
+ if(standingMatch===match){duelDecision={matchId:match.id,hostScore:side===0?canonical:1-canonical};$('battleMessage').textContent=canonical===1?'CHIẾN THẮNG':canonical===0?'THẤT BẠI':'HÒA';const badge=document.querySelector('[data-standing-result]');if(badge){const delta=result.appliedDeltaElo;badge.textContent=(delta>=0?'+':'')+delta+' Elo · Đã chốt cho cả hai';badge.hidden=false}}
+ return {score:canonical};
+}
+function applyDuelClaim(claim){if(claim.matchId!==standingMatch?.id)return;return finishDuelDecision(claim.hostScore)}
+
+let duelRecoveryPlan=null,duelLastResult=null,duelRecoveryTicket=null;
+const duelRecovery=typeof QuickDrawnRecovery==='undefined'?null:new QuickDrawnRecovery({
+ label:'duel',role:()=>mode,getPeer:()=>peer,setPeer:p=>{peer=p},getConnection:()=>conn,
+ detach:c=>{if(conn===c)conn=null},hostId:()=>'anhhung-duel-'+pvpRoomCode,
+ bind:c=>listen(c),snapshot:duelRecoverySnapshot,apply:applyDuelRecovery,
+ lost:onDuelConnectionLost,restored:onDuelConnectionRestored,canAdjudicate:()=>!!standingMatch&&!ended&&round>0&&standingMatch.profile.id!==standingMatch.opponent?.id,matchId:()=>standingMatch?.id,adjudicate:finishDuelDecision,applyClaim:applyDuelClaim
+});
+function onDuelConnectionLost(){
+ if($('battle').hidden){if(pvpRoom){pvpRoom.ready=[false,false];pvpRoom.localReady=false;pvpRoom.linked=false;renderPvPRoom()}duelRecoveryPlan={phase:'room',paused:false};return}
+ duelRecoveryPlan={phase:ended?'finished':!question?'starting':(locked||fx)?'between':'question',paused};
+ setPaused(true,false);disableAnswers();$('roundStatus').textContent='Mất kết nối. Đang giữ ván để nối lại…';
+}
+function duelRecoverySnapshot(){
+ if(!pvpRoom)throw Error('Missing room');
+ const room={code:pvpRoomCode,players:[...players],names:[...names],standing:standingMatch?descriptorForCurrentMatch():pvpRoom.standing};
+ if($('battle').hidden){room.players=[...pvpRoom.players];room.names=[...pvpRoom.names];return {phase:'room',room}}
+ return {phase:duelDecision?.matchId===standingMatch.id?'decision':duelRecoveryPlan?.phase||(ended?'finished':'question'),paused:!!duelRecoveryPlan?.paused,room,match:matchId,round,question:question?{...question,options:[...question.options]}:null,lives:[...lives],map:currentMap,vocabSource,poolSize:standingMatch.deckSize,decision:duelDecision,result:duelLastResult?{...duelLastResult,lives:[...duelLastResult.lives]}:null};
+}
+function applyDuelRecovery(data){
+ const r=data?.room,profile=standingMatch?.profile||joiningStandingProfile;
+ if(!data||!['room','question','between','starting','finished','decision'].includes(data.phase)||!r||!/^\d{4}$/.test(r.code)||r.code!==pvpRoomCode||!isPacketArray(r.players,2,id=>Object.hasOwn(heroes,id))||!isPacketArray(r.names,2,name=>typeof name==='string')||!isStandingDescriptor(r.standing)||r.standing.profiles[1].id!==profile?.id)return false;
+ if(data.phase==='room'){
+  if(!$('battle').hidden&&question)return false;
+  pvpRoom={players:[...r.players],names:r.names.map(n=>n.slice(0,18)),standing:r.standing,ready:[false,false],localReady:false,linked:false,starting:false};duelRecoveryPlan={phase:'room',paused:false};return true;
+ }
+ if(typeof data.paused!=='boolean'||!Number.isSafeInteger(data.match)||data.match<matchId||data.match>matchId+1||!Number.isSafeInteger(data.round)||data.round<0||!isPacketArray(data.lives,2,h=>Number.isInteger(h)&&h>=0&&h<=10)||!ARENA_MAPS.some(m=>m.id===data.map)||data.poolSize!==r.standing.deckSize||!['starter','lexical'].includes(data.vocabSource))return false;
+ if(standingMatch&&r.standing.id!==standingMatch.id&&!myRematchReady)return false;
+ if(data.phase==='starting'){if(data.round!==0||data.question!==null)return false}
+ else if(!isValidRoundPayload({match:data.match,round:data.round,question:data.question,players:r.players,names:r.names,lives:data.lives,map:data.map,vocabSource:data.vocabSource,poolSize:data.poolSize}))return false;
+ if(data.phase==='decision'&&(!data.decision||data.decision.matchId!==r.standing.id||![0,.5,1].includes(data.decision.hostScore)))return false;
+ if(data.phase==='finished'&&(!isValidResultPayload(data.result)||!data.result.final||data.result.match!==data.match||data.result.round!==data.round||JSON.stringify(data.result.lives)!==JSON.stringify(data.lives)))return false;
+ if($('battle').hidden){if(!pvpRoom?.localReady)return false;setup('guest')}
+ clearTasks();fx=null;preview=null;side=1;players=[...r.players];names=r.names.map(n=>n.slice(0,18));matchId=data.match;round=data.round;question=data.question;lives=[...data.lives];displayLives=[...lives];currentMap=data.map;vocabSource=data.vocabSource;
+ if(!standingMatch||standingMatch.id!==r.standing.id)acceptStandingDescriptor(r.standing,1);
+ pvpRoom={players:[...players],names:[...names],standing:r.standing,ready:[true,true],localReady:true,linked:false,starting:true};
+ ended=false;locked=true;poses=['idle','idle'];duelRecoveryPlan={phase:data.phase,paused:data.paused};myRematchReady=false;peerRematchReady=false;
+ if(data.phase==='question')showRound(round,question,players,lives,names,currentMap,data.poolSize);
+ else if(data.phase==='finished'){duelLastResult=data.result;applyResult(data.result)}
+ else if(data.phase==='decision')return finishDuelDecision(1-data.decision.hostScore).then(()=>true);
+ else{updateHUD();$('roundStatus').textContent='Đang đồng bộ câu hỏi tiếp theo…';disableAnswers()}
+ return true;
+}
+function onDuelConnectionRestored(){
+ const plan=duelDecision&&duelDecision.matchId===standingMatch?.id?{phase:'decision'}:duelRecoveryPlan;duelRecoveryPlan=null;if(!plan||plan.phase==='decision')return;
+ if(plan.phase==='room'){if(pvpRoom){pvpRoom.ready=[false,false];pvpRoom.localReady=false;pvpRoom.linked=true;renderPvPRoom()}return}
+ if(mode==='host'){
+  clearTasks();fx=null;preview=null;poses=['idle','idle'];myRematchReady=false;peerRematchReady=false;
+  if(plan.phase==='question'){ended=false;showRound(round,question,players,lives,names,currentMap,standingMatch.deckSize)}
+  else if(plan.phase==='finished'){ended=false;if(duelLastResult)applyResult(duelLastResult)}
+  else{ended=false;beginRound()}
+ }
+ if(plan.paused&&plan.phase!=='finished')setPaused(true,false);
+}
+
 function accountName(){return $('username').value.trim()}
 function myName(){return accountName().slice(0,18)||'P1'}
 function cancelTask(key){const item=scheduled.get(key);if(item)clearTimeout(item.id);scheduled.delete(key)}
 function schedule(key,fn,delay){cancelTask(key);const task={fn,remaining:delay,id:null,due:0};scheduled.set(key,task);if(!paused)startTask(key,task)}
 function startTask(key,task){task.due=performance.now()+task.remaining;task.id=setTimeout(()=>{scheduled.delete(key);task.fn()},task.remaining)}
-function setPaused(value,announce=true){if(paused===value||$('battle').hidden)return;paused=value;const now=performance.now();if(value){pausedAt=now;for(const task of scheduled.values()){clearTimeout(task.id);task.remaining=Math.max(0,task.due-now)}}else{const delta=now-pausedAt;if(fx){fx.start+=delta;if(fx.deadStart)fx.deadStart+=delta;if(fx.lastHitAt)fx.lastHitAt+=delta;if(fx.victoryStart)fx.victoryStart+=delta}if(preview)preview.start+=delta;for(const [key,task] of scheduled)startTask(key,task)}$('pauseOverlay').hidden=!value;$('battle').classList.toggle('is-paused',value);$('pause').setAttribute('aria-label',value?'Trận đấu đang tạm dừng':'Tạm dừng');$('answers').inert=value;if(announce)send({type:'PAUSE',value});if(!value){for(const message of pendingMessages.splice(0))receiveData(message)}}
+function setPaused(value,announce=true){if(!value&&duelRecovery?.blocked)return;if(paused===value||$('battle').hidden)return;paused=value;const now=performance.now();if(value){pausedAt=now;for(const task of scheduled.values()){clearTimeout(task.id);task.remaining=Math.max(0,task.due-now)}}else{const delta=now-pausedAt;if(fx){fx.start+=delta;if(fx.deadStart)fx.deadStart+=delta;if(fx.lastHitAt)fx.lastHitAt+=delta;if(fx.victoryStart)fx.victoryStart+=delta}if(preview)preview.start+=delta;for(const [key,task] of scheduled)startTask(key,task)}$('pauseOverlay').hidden=!value;$('battle').classList.toggle('is-paused',value);$('pause').setAttribute('aria-label',value?'Trận đấu đang tạm dừng':'Tạm dừng');$('answers').inert=value;if(announce)send({type:'PAUSE',value});if(!value){for(const message of pendingMessages.splice(0))receiveData(message)}}
 function clearTasks(){for(const key of scheduled.keys())cancelTask(key);pendingMessages.length=0;paused=false;$('battle').classList.remove('is-paused');$('pauseOverlay').hidden=true;$('answers').inert=false}
 
 const sprites={};for(const name of Object.keys(heroes)){sprites[name]=new Image();sprites[name].src=`assets/images/heroes/${name}.png`;}
@@ -197,6 +264,16 @@ async function hydrateSharedStanding(name,epoch){
   standingWrites=standingWrites.then(save,save).catch(()=>{});await standingWrites;renderStandingBoard();
  }catch(_){/* Offline play retains its local profile and pending result ledger. */}
 }
+async function finishStandingPair(descriptor,localSide,actualScore){
+ if(!descriptor||!['pvp','chess'].includes(descriptor.mode)||typeof descriptor.id!=='string'||!isPacketArray(descriptor.profiles,2,isStandingSnapshot)||descriptor.profiles[0].id===descriptor.profiles[1].id||![0,1].includes(localSide)||![0,.5,1].includes(actualScore)||(descriptor.mode==='pvp'?!Number.isSafeInteger(descriptor.deckSize)||descriptor.deckSize<1:descriptor.deckSize!==0))throw Error('Invalid paired decision');
+ const snapshots=descriptor.profiles.map(p=>({...p})),scores=localSide===0?[actualScore,1-actualScore]:[1-actualScore,actualScore];
+ const seed=await Promise.all(snapshots.map(async p=>{if(cloudStandingService?.db&&typeof navigator!=='undefined'&&navigator.onLine!==false){try{const row=await cloudStandingService.player(p.id);if(isStandingPlayer(row))return row}catch(_){}}return cloudStandingRows.find(row=>row.id===p.id&&isStandingPlayer(row))||{...newStandingPlayer(p.id,p.name),elo:p.elo,matchesPlayed:p.matchesPlayed}}));
+ const save=()=>{const write=()=>{const store=readStandingStore();for(const row of seed)if(!store.players.some(p=>p.id===row.id))store.players.push({...row,updatedAt:null});writeStandingStore(store);return snapshots.map((profile,i)=>persistStandingResult({id:descriptor.id,mode:descriptor.mode,deckSize:descriptor.deckSize,profile,opponent:snapshots[1-i]},scores[i],0))};return typeof navigator!=='undefined'&&navigator.locks?.request?navigator.locks.request(STANDINGS_KEY,write).catch(write):write()};
+ const task=standingWrites.then(save,save);standingWrites=task.catch(()=>{});const results=await task;renderStandingBoard();await syncSharedStandings();
+ if(cloudStandingService?.result&&typeof navigator!=='undefined'&&navigator.onLine!==false){try{const canonical=await cloudStandingService.result(snapshots[localSide].id,descriptor.id);if(canonical&&['win','loss','draw'].includes(canonical.outcome))return canonical}catch(_){}}
+ return results[localSide];
+}
+
 async function syncSharedStandings(){
  if(!cloudStandingService?.db||(typeof navigator!=='undefined'&&navigator.onLine===false))return;
  if(cloudSyncRunning){cloudSyncAgain=true;return}cloudSyncRunning=true;
@@ -206,7 +283,7 @@ async function syncSharedStandings(){
    for(const id of store.pendingSync){
     const profile=store.players.find(row=>row.id===id);if(!profile||id.startsWith('guest-'))continue;
     const results=store.matches.filter(row=>row.playerId===id);if(!results.length||!await cloudStandingService.profile(profile.name))continue;
-    for(const result of results)await cloudStandingService.sync(result,profile);
+    for(const result of results){const other=store.matches.find(row=>row.matchId===result.matchId&&row.playerId===result.opponentId&&row.opponentId===result.playerId),opponent=other&&store.players.find(p=>p.id===other.playerId);if(other&&opponent&&cloudStandingService.syncPair&&await cloudStandingService.profile(opponent.name))await cloudStandingService.syncPair([result,other],[profile,opponent]);else await cloudStandingService.sync(result,profile)}
     const remote=await cloudStandingService.player(id);if(!isStandingPlayer(remote))continue;
     const known=new Set(results.map(row=>row.id));
     const commit=()=>{const current=readStandingStore();if(current.matches.some(row=>row.playerId===id&&!known.has(row.id))){cloudSyncAgain=true;return}const local=current.players.find(row=>row.id===id);if(!local)return;Object.assign(local,{elo:remote.elo,wins:remote.wins,losses:remote.losses,matchesPlayed:remote.matchesPlayed,maxDeckSize:remote.maxDeckSize,bestSurvivalScore:remote.bestSurvivalScore||0,updatedAt:local.updatedAt});current.pendingSync=current.pendingSync.filter(value=>value!==id);writeStandingStore(current)};
@@ -263,9 +340,9 @@ const lobbyCanvas=$('lobbyHero'),lobbyCtx=lobbyCanvas.getContext('2d');function 
 
 function shuffle(a){const out=[...a];for(let i=out.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[out[i],out[j]]=[out[j],out[i]]}return out}
 function status(t){$('status').textContent=t}
-function clean(){resetPvPRoom();standingMatch=null;joiningStandingProfile=null;resetStandingBadge();navigationEpoch++;connectionEpoch++;clearTimeout(connectionTimer);connectionTimer=null;clearTasks();myRematchReady=false;peerRematchReady=false;$('rematchPanel').hidden=true;$('answers').hidden=false;clearTimeout(botTimer);clearTimeout(nextTimer);clearTimeout(impactTimer);clearTimeout(fallTimer);fx=null;preview=null;$('victoryBanner').hidden=true;const oldConn=conn,oldPeer=peer;conn=null;peer=null;if(oldConn)oldConn.close();if(oldPeer)oldPeer.destroy();mode='';locked=true;ended=true}
-function send(v){if(conn&&conn.open)conn.send(v)}
-function setup(m){mode=m;side=0;matchId=1;myRematchReady=false;peerRematchReady=false;$('rematchPanel').hidden=true;$('answers').hidden=false;players=[$('hero').value,m==='bot'?'tran':null];names=[myName(),m==='bot'?'Máy':'Đang kết nối'];score=0;$('scoreValue').textContent='0';$('scorePanel').hidden=m!=='bot';lives=[10,10];displayLives=[10,10];if(m!=='guest'){mapCursor=(mapCursor+1)%ARENA_MAPS.length;currentMap=ARENA_MAPS[mapCursor].id;}round=0;question=null;ended=false;locked=true;fx=null;preview=null;poses=['idle','idle'];$('word').textContent='—';$('meaning').textContent='';$('answers').replaceChildren();$('roundStatus').textContent=m==='bot'?'Đang chuẩn bị câu hỏi…':'Đang đồng bộ trận đấu…';$('battleMessage').textContent='';$('victoryBanner').hidden=true;$('battle').hidden=false;$('lobby').hidden=true;$('pvpMenu').hidden=true;document.body.classList.add('in-battle');if(m==='bot')startBotStanding();else resetStandingBadge();updateHUD()}
+function clean(){duelRecovery?.reset();duelRecoveryPlan=null;duelLastResult=null;duelDecision=null;duelRecoveryTicket=null;resetPvPRoom();standingMatch=null;joiningStandingProfile=null;resetStandingBadge();navigationEpoch++;connectionEpoch++;clearTimeout(connectionTimer);connectionTimer=null;clearTasks();myRematchReady=false;peerRematchReady=false;$('rematchPanel').hidden=true;$('answers').hidden=false;clearTimeout(botTimer);clearTimeout(nextTimer);clearTimeout(impactTimer);clearTimeout(fallTimer);fx=null;preview=null;$('victoryBanner').hidden=true;const oldConn=conn,oldPeer=peer;conn=null;peer=null;if(oldConn)oldConn.close();if(oldPeer)oldPeer.destroy();mode='';locked=true;ended=true}
+function send(v){if(conn&&conn.open)try{conn.send(v)}catch(_){duelRecovery?.lost('Đường truyền bị gián đoạn. Đang kết nối lại…')}}
+function setup(m){duelDecision=null;duelLastResult=null;mode=m;side=0;matchId=1;myRematchReady=false;peerRematchReady=false;$('rematchPanel').hidden=true;$('answers').hidden=false;players=[$('hero').value,m==='bot'?'tran':null];names=[myName(),m==='bot'?'Máy':'Đang kết nối'];score=0;$('scoreValue').textContent='0';$('scorePanel').hidden=m!=='bot';lives=[10,10];displayLives=[10,10];if(m!=='guest'){mapCursor=(mapCursor+1)%ARENA_MAPS.length;currentMap=ARENA_MAPS[mapCursor].id;}round=0;question=null;ended=false;locked=true;fx=null;preview=null;poses=['idle','idle'];$('word').textContent='—';$('meaning').textContent='';$('answers').replaceChildren();$('roundStatus').textContent=m==='bot'?'Đang chuẩn bị câu hỏi…':'Đang đồng bộ trận đấu…';$('battleMessage').textContent='';$('victoryBanner').hidden=true;$('battle').hidden=false;$('lobby').hidden=true;$('pvpMenu').hidden=true;document.body.classList.add('in-battle');if(m==='bot')startBotStanding();else resetStandingBadge();updateHUD()}
 function updateHUD(){for(let i=0;i<2;i++){ $('name'+i).textContent=`${names[i]} - ${heroes[players[i]]||'Danh tướng'}`;const hp=$('lives'+i),container=hp.querySelector('.hp-pips');if(mode==='bot'&&i===1){container.innerHTML='<span class="hp-infinity" aria-hidden="true">∞</span>';hp.removeAttribute('aria-valuenow');hp.setAttribute('aria-valuetext','Máu vô hạn');continue}if(container.querySelector('.hp-infinity'))container.replaceChildren();const value=Math.max(0,Math.min(10,displayLives[i]));if(!container.children.length){for(let n=0;n<10;n++){const pip=document.createElement('span');pip.className='hp-pip';pip.setAttribute('aria-hidden','true');pip.addEventListener('animationend',()=>pip.classList.remove('breaking'));container.append(pip)}}const prev=Number(hp.dataset.value||10);for(let n=0;n<10;n++){const pip=container.children[n],remaining=i===0?n<value:n>=10-value,oldRemaining=i===0?n<prev:n>=10-prev;const healthIndex=i===0?n:9-n,breaking=pip.classList.contains('breaking')&&!remaining;pip.className='hp-pip '+(healthIndex<3?'red':healthIndex<6?'yellow':'green')+(remaining?'':' depleted')+(breaking?' breaking':'');if(oldRemaining&&!remaining){void pip.offsetWidth;pip.classList.add('breaking')}}hp.dataset.value=String(value);hp.setAttribute('aria-valuenow',String(value));hp.setAttribute('aria-valuetext',`${value} trên 10 máu`)}}
 function nextQuestion(){
  if(!questionBag.length){const source=questionPool.length?questionPool:words.map(w=>({word:w[0],meaning:w[1],answer:w[2],options:w.slice(2)}));questionBag=shuffle(source);if(questionBag.length>1&&questionBag[questionBag.length-1].word.trim().toLocaleLowerCase()===lastQuestionKey){[questionBag[0],questionBag[questionBag.length-1]]=[questionBag[questionBag.length-1],questionBag[0]]}}
@@ -274,10 +351,10 @@ function nextQuestion(){
 function beginRound(){if(ended)return;round++;const q=nextQuestion();question=q;send({type:'ROUND',match:matchId,round,question,players,lives,names,map:currentMap,vocabSource,poolSize:questionPool.length||words.length});showRound(round,question,players,lives,names,currentMap,questionPool.length||words.length);if(mode==='bot'){const delay=Math.max(1750,7000-(round-1)*200);$('botSpeed').textContent=`Máy: ${(delay/1000).toFixed(2).replace(/0$/,'')} giây · Mục tiêu: ${standingPvCTarget(standingMatch.profile.elo)} câu`;schedule('bot',()=>resolveHit(1),delay)}}
 function showRound(n,q,p,l,newNames,newMap,poolSize){round=n;question=q;players=p;lives=l;if(Array.isArray(newNames)&&newNames.length===2)names=newNames.map(v=>String(v).slice(0,18));if(ARENA_MAPS.some(m=>m.id===newMap))currentMap=newMap;displayLives=[...l];locked=false;poses=['idle','idle'];fx=null;preview=null;$('victoryBanner').hidden=true;$('rematchPanel').hidden=true;$('answers').hidden=false;updateHUD();$('word').textContent=q.word;$('meaning').textContent=`(${q.meaning})`;$('battleMessage').textContent='';$('roundStatus').textContent=poolSize===1?'Bộ từ chỉ có một câu phù hợp nên câu sẽ lặp.':'Chọn đáp án đúng trước đối thủ!';$('answers').replaceChildren();q.options.forEach((opt,i)=>{let b=document.createElement('button');b.textContent=opt;b.dataset.key=String(i+1);b.setAttribute('aria-keyshortcuts',String(i+1));b.onclick=()=>answer(i);$('answers').append(b)})}
 function disableAnswers(){locked=true;document.querySelectorAll('#answers button').forEach(b=>b.disabled=true)}
-function answer(i){if(locked||ended||paused)return;combatSound.play('tap_click');const correct=question.options[i]===question.answer;disableAnswers();if(!correct){$('roundStatus').textContent='Sai! Đối thủ phản đòn.';if(mode==='guest')send({type:'MISS',match:matchId,round,choice:i});else resolveHit(1);return}poses[side]='attack';$('roundStatus').textContent='Đã ra đòn!';if(mode==='guest'){const hero=players[side];preview={start:performance.now(),winner:side,hero,impact:CombatAnimator.impactMs(hero)};if(hero==='vuong')preview.tauntIndex=randomTeacherTaunt();if(hero!=='vuong')combatSound.play(hero==='chu'?'scroll_cast':(hero==='mai'||hero==='toan')?'fruit_throw':hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');send({type:'HIT',match:matchId,round,choice:i,hero,timestamp:performance.now(),...(hero==='vuong'?{tauntIndex:preview.tauntIndex}:{})})}else resolveHit(0)}
+function answer(i){if(locked||ended||paused||duelRecovery?.blocked)return;combatSound.play('tap_click');const correct=question.options[i]===question.answer;disableAnswers();if(!correct){$('roundStatus').textContent='Sai! Đối thủ phản đòn.';if(mode==='guest')send({type:'MISS',match:matchId,round,choice:i});else resolveHit(1);return}poses[side]='attack';$('roundStatus').textContent='Đã ra đòn!';if(mode==='guest'){const hero=players[side];preview={start:performance.now(),winner:side,hero,impact:CombatAnimator.impactMs(hero)};if(hero==='vuong')preview.tauntIndex=randomTeacherTaunt();if(hero!=='vuong')combatSound.play(hero==='chu'?'scroll_cast':(hero==='mai'||hero==='toan')?'fruit_throw':hero==='an'?'bow_shot':hero==='trung'?'elephant_charge':'shout_attack');send({type:'HIT',match:matchId,round,choice:i,hero,timestamp:performance.now(),...(hero==='vuong'?{tauntIndex:preview.tauntIndex}:{})})}else resolveHit(0)}
 function resolveHit(winner,tauntIndex){if(ended||!question||fx)return;cancelTask('bot');disableAnswers();let loser=1-winner;if(mode==='bot'&&winner===0){score++;}else lives[loser]=Math.max(0,lives[loser]-1);const final=lives[loser]===0;let result={type:'RESULT',match:matchId,round,winner,lives:[...lives],final};if(players[winner]==='vuong')result.tauntIndex=isTeacherTauntIndex(tauntIndex)?tauntIndex:randomTeacherTaunt();send(result);applyResult(result);if(!final)schedule('next',beginRound,1300)}
 function applyResult(result){
- if(result.round!==round||ended||fx)return;
+ if(result.round!==round||ended||fx)return;duelLastResult={...result,lives:[...result.lives]};
  disableAnswers();lives=[...result.lives];const winner=result.winner,loser=1-winner,hero=players[winner],hitTimes=hero==='vuong'&&result.final?[CombatAnimator.impactMs(hero)]:CombatAnimator.hitTimes(hero);
  const alreadyPlayed=preview&&preview.winner===winner,previewTaunt=alreadyPlayed?preview.tauntIndex:undefined;preview=null;fx={start:performance.now(),winner,final:result.final,hero,impact:hitTimes[0],impacted:false,lastHitAt:0,deadStart:0};if(hero==='vuong')fx.tauntIndex=isTeacherTauntIndex(result.tauntIndex)?result.tauntIndex:isTeacherTauntIndex(previewTaunt)?previewTaunt:randomTeacherTaunt();
  poses[winner]='attack';poses[loser]='idle';
@@ -299,7 +376,7 @@ function applyResult(result){
 }
 function clearConnectionTimer(){clearTimeout(connectionTimer);connectionTimer=null}
 function connectionFailed(message){
- clearConnectionTimer();
+ clearConnectionTimer();if(duelRecovery?.lost(message))return;
  if($('battle').hidden){const old=conn;conn=null;pvpRoom=null;renderPvPRoom();if(old)old.close();status(message);return}
  clearTasks();ended=true;disableAnswers();$('battleMessage').textContent='MẤT KẾT NỐI';$('roundStatus').textContent=message;showRematchPanel();$('rematch').disabled=true;$('rematchStatus').textContent='Về sảnh để kết nối lại.';
 }
@@ -332,12 +409,12 @@ function receiveData(data){
   if(!$('battle').hidden||pvpRoom)return;
   if(data.version!==PVP_PROTOCOL||!Object.hasOwn(heroes,data.hero)||!isStandingSnapshot(data.rating)){const c=conn;if(c?.open)c.send({type:'PROTOCOL_ERROR',version:PVP_PROTOCOL});clearConnectionTimer();conn=null;if(c)setTimeout(()=>c.close(),150);status('Hai máy đang dùng khác phiên bản. Cả hai hãy cập nhật và tải lại trò chơi.');return}
   clearConnectionTimer();side=0;pvpRoom={players:[$('hero').value,data.hero],names:[myName(),typeof data.name==='string'?data.name.slice(0,18)||'P2':'P2'],standing:createStandingDescriptor(data.rating),ready:[false,false],localReady:false,linked:false,starting:false};
-  renderPvPRoom();send({type:'WELCOME',version:PVP_PROTOCOL,players:pvpRoom.players,names:pvpRoom.names,standing:pvpRoom.standing});startConnectionTimer('Đối thủ chưa xác nhận kết nối phòng. Hãy thử lại.');return
+  duelRecoveryTicket=duelRecovery?.accept(data.recovery,conn);renderPvPRoom();send({type:'WELCOME',version:PVP_PROTOCOL,players:pvpRoom.players,names:pvpRoom.names,standing:pvpRoom.standing,recovery:duelRecoveryTicket});startConnectionTimer('Đối thủ chưa xác nhận kết nối phòng. Hãy thử lại.');return
  }
  if(mode==='guest'&&data.type==='WELCOME'){
   if(!$('battle').hidden||pvpRoom)return;
   if(data.version!==PVP_PROTOCOL||!isPacketArray(data.players,2,id=>typeof id==='string'&&Object.hasOwn(heroes,id))||!isPacketArray(data.names,2,name=>typeof name==='string')||!isStandingDescriptor(data.standing)||data.standing.profiles[1].id!==joiningStandingProfile?.id){const c=conn;conn=null;if(c)c.close();connectionFailed('Hai máy đang dùng khác phiên bản. Cả hai hãy cập nhật và tải lại trò chơi.');return}
-  clearConnectionTimer();side=1;pvpRoomCode=$('code').value.trim();pvpRoom={players:[...data.players],names:data.names.map(name=>name.slice(0,18)),standing:data.standing,ready:[false,false],localReady:false,linked:true,starting:false};renderPvPRoom();send({type:'ROOM_LINKED',version:PVP_PROTOCOL,room:pvpRoom.standing.id});return
+  clearConnectionTimer();if(!duelRecovery?.active)duelRecovery?.adopt(data.recovery,conn);side=1;pvpRoomCode=$('code').value.trim();pvpRoom={players:[...data.players],names:data.names.map(name=>name.slice(0,18)),standing:data.standing,ready:[false,false],localReady:false,linked:true,starting:false};renderPvPRoom();send({type:'ROOM_LINKED',version:PVP_PROTOCOL,room:pvpRoom.standing.id});return
  }
  if(receivePvPRoomMessage(data))return;
  if(pvpRoom&&!pvpRoom.starting)return;
@@ -353,16 +430,16 @@ function receiveData(data){
  else if(mode==='guest'&&data.type==='RESULT'&&data.round===round){applyResult(data)}
 }
 function listen(c){
- conn=c;c.on('data',data=>{if(conn===c)receiveData(data)});
+ conn=c;duelRecovery?.trackConnection(c);c.on('data',data=>{if(conn===c){if(duelRecovery?.receive(data,c)||duelRecovery?.blocked)return;receiveData(data)}});
  c.on('close',()=>{if(conn!==c)return;conn=null;connectionFailed('Kết nối với đối thủ đã ngắt. Hãy thử tạo hoặc vào phòng lại.')});
  c.on('error',()=>{if(conn!==c)return;conn=null;connectionFailed('Lỗi kết nối với đối thủ. Hãy kiểm tra mạng và thử lại.')});
 }
 function createHost(attempt,epoch){
  if(epoch!==connectionEpoch)return;
- const code=String(Math.floor(1000+Math.random()*9000)),candidate=new Peer('anhhung-duel-'+code);peer=candidate;
- candidate.on('open',()=>{if(peer!==candidate||epoch!==connectionEpoch)return;pvpRoomCode=code;status(`Mã phòng: ${code} — đang chờ đối thủ. ${vocabSource==='lexical'?`Bộ từ của ${accountName()}`:'Đang dùng bộ từ mẫu.'}`)});
- candidate.on('connection',c=>{if(peer!==candidate||epoch!==connectionEpoch||conn||!$('battle').hidden){c.close();return}listen(c);status('Đang kết nối và xác minh đối thủ…');startConnectionTimer('Kết nối quá lâu. Hãy kiểm tra mạng và thử vào phòng lại.')});
- candidate.on('error',e=>{if(peer!==candidate||epoch!==connectionEpoch)return;if(e.type==='unavailable-id'&&attempt<8){peer=null;candidate.destroy();status('Đang chọn mã phòng khác…');createHost(attempt+1,epoch);return}connectionFailed(peerErrorMessage(e))});
+ const code=String(Math.floor(1000+Math.random()*9000)),candidate=new Peer('anhhung-duel-'+code);peer=candidate;duelRecovery?.trackPeer(candidate);
+ candidate.on('open',()=>{if(peer!==candidate||epoch!==connectionEpoch)return;if(duelRecovery?.active){duelRecovery.retry();return}pvpRoomCode=code;status(`Mã phòng: ${code} — đang chờ đối thủ. ${vocabSource==='lexical'?`Bộ từ của ${accountName()}`:'Đang dùng bộ từ mẫu.'}`)});
+ candidate.on('connection',c=>{if(duelRecovery?.incoming(c))return;if(peer!==candidate||epoch!==connectionEpoch||conn||!$('battle').hidden){c.close();return}listen(c);status('Đang kết nối và xác minh đối thủ…');startConnectionTimer('Kết nối quá lâu. Hãy kiểm tra mạng và thử vào phòng lại.')});
+ candidate.on('error',e=>{if(peer!==candidate||epoch!==connectionEpoch)return;if(duelRecovery?.peerError(e))return;if(e.type==='unavailable-id'&&attempt<8){peer=null;candidate.destroy();status('Đang chọn mã phòng khác…');createHost(attempt+1,epoch);return}connectionFailed(peerErrorMessage(e))});
  candidate.on('disconnected',()=>{if(peer===candidate&&epoch===connectionEpoch&&!conn)status('Mất kết nối máy chủ phòng. Hãy tạo lại phòng.')});
 }
 $('host').onclick=async()=>{
@@ -371,14 +448,14 @@ $('host').onclick=async()=>{
 };
 $('join').onclick=()=>{
  const code=$('code').value.trim();if(!/^\d{4}$/.test(code)){status('Vui lòng nhập đúng 4 chữ số.');return}if(typeof Peer==='undefined'){status('Không tải được PeerJS. Kiểm tra mạng rồi tải lại trang.');return}
- clean();mode='guest';const epoch=connectionEpoch;status('Đang kết nối với chủ phòng…');const candidate=new Peer();peer=candidate;
+ clean();mode='guest';const epoch=connectionEpoch;status('Đang kết nối với chủ phòng…');const candidate=new Peer();peer=candidate;duelRecovery?.trackPeer(candidate);
  startConnectionTimer('Kết nối quá lâu. Kiểm tra mã phòng, mạng và thử lại.');
- candidate.on('open',()=>{if(peer!==candidate||epoch!==connectionEpoch)return;const c=candidate.connect('anhhung-duel-'+code,{reliable:true});listen(c);c.on('open',async()=>{if(conn!==c||epoch!==connectionEpoch)return;status('Đã kết nối, đang xác minh hồ sơ…');const navigation=navigationEpoch,user=accountName();await hydrateSharedStanding(user,navigation);if(conn!==c||epoch!==connectionEpoch||navigation!==navigationEpoch||user!==accountName())return;joiningStandingProfile=standingSnapshot(localStandingProfile());send({type:'HELLO',version:PVP_PROTOCOL,hero:$('hero').value,name:myName(),rating:joiningStandingProfile});startConnectionTimer('Chủ phòng không phản hồi. Cả hai hãy cập nhật và tải lại trò chơi.')})});
- candidate.on('error',e=>{if(peer!==candidate||epoch!==connectionEpoch)return;connectionFailed(peerErrorMessage(e))});
+ candidate.on('open',()=>{if(peer!==candidate||epoch!==connectionEpoch)return;if(duelRecovery?.active){duelRecovery.retry();return}const c=candidate.connect('anhhung-duel-'+code,{reliable:true});listen(c);c.on('open',async()=>{if(conn!==c||epoch!==connectionEpoch)return;status('Đã kết nối, đang xác minh hồ sơ…');const navigation=navigationEpoch,user=accountName();await hydrateSharedStanding(user,navigation);if(conn!==c||epoch!==connectionEpoch||navigation!==navigationEpoch||user!==accountName())return;joiningStandingProfile=standingSnapshot(localStandingProfile());send({type:'HELLO',version:PVP_PROTOCOL,hero:$('hero').value,name:myName(),rating:joiningStandingProfile,recovery:duelRecovery?.offer()});startConnectionTimer('Chủ phòng không phản hồi. Cả hai hãy cập nhật và tải lại trò chơi.')})});
+ candidate.on('error',e=>{if(peer!==candidate||epoch!==connectionEpoch)return;if(duelRecovery?.peerError(e))return;connectionFailed(peerErrorMessage(e))});
 };
 function showRematchPanel(){$('answers').hidden=true;$('rematchPanel').hidden=false;$('rematch').disabled=false;$('rematch').textContent='TÁI ĐẤU';updateRematchStatus()}
 function updateRematchStatus(){if(mode==='bot'){$('rematchStatus').textContent='Chơi tiếp với máy và bộ từ hiện tại.';return}if(!conn?.open){$('rematch').disabled=true;$('rematchStatus').textContent='Kết nối đã ngắt. Hãy về sảnh để tạo phòng mới.';return}$('rematchStatus').textContent=myRematchReady?'Đang chờ đối thủ đồng ý tái đấu.':peerRematchReady?'Đối thủ đã sẵn sàng tái đấu.':'Cả hai người cần đồng ý tái đấu.'}
-function startRematch(announce=true,descriptor=null){if(!ended)return;if(mode==='host'){if(!standingMatch)return;descriptor={id:'pvp-'+standingUid(),deckSize:standingMatch.deckSize,profiles:[latestStandingSnapshot(standingMatch.profile),standingMatch.opponent]};if(announce)send({type:'REMATCH_START',match:matchId+1,standing:descriptor})}if(mode==='guest'&&!isStandingDescriptor(descriptor))return;clearTasks();if(mode==='bot')startBotStanding();else acceptStandingDescriptor(descriptor,side);matchId++;round=0;question=null;score=0;lives=[10,10];displayLives=[10,10];ended=false;locked=true;fx=null;preview=null;poses=['idle','idle'];myRematchReady=false;peerRematchReady=false;$('scoreValue').textContent='0';$('rematchPanel').hidden=true;$('answers').hidden=false;$('victoryBanner').hidden=true;$('battleMessage').textContent='';$('roundStatus').textContent='Đang chuẩn bị trận mới…';if(mode!=='guest'){mapCursor=(mapCursor+1)%ARENA_MAPS.length;currentMap=ARENA_MAPS[mapCursor].id}updateHUD();if(mode!=='guest')beginRound()}
+function startRematch(announce=true,descriptor=null){if(!ended)return;if(mode==='host'){if(!standingMatch)return;descriptor={id:'pvp-'+standingUid(),deckSize:standingMatch.deckSize,profiles:[latestStandingSnapshot(standingMatch.profile),standingMatch.opponent]};if(announce)send({type:'REMATCH_START',match:matchId+1,standing:descriptor})}if(mode==='guest'&&!isStandingDescriptor(descriptor))return;clearTasks();if(mode==='bot')startBotStanding();else acceptStandingDescriptor(descriptor,side);duelDecision=null;matchId++;round=0;question=null;score=0;lives=[10,10];displayLives=[10,10];ended=false;locked=true;fx=null;preview=null;poses=['idle','idle'];myRematchReady=false;peerRematchReady=false;$('scoreValue').textContent='0';$('rematchPanel').hidden=true;$('answers').hidden=false;$('victoryBanner').hidden=true;$('battleMessage').textContent='';$('roundStatus').textContent='Đang chuẩn bị trận mới…';if(mode!=='guest'){mapCursor=(mapCursor+1)%ARENA_MAPS.length;currentMap=ARENA_MAPS[mapCursor].id}updateHUD();if(mode!=='guest')beginRound()}
 $('rematch').onclick=async()=>{
  if(!ended||paused)return;const match=standingMatch,epoch=navigationEpoch;$('rematch').disabled=true;
  await match?.savePromise;
@@ -432,9 +509,9 @@ startSharedStandings();
 
 // Chess shares the existing identity and standings boundary without combat state.
 window.QuickDrawnChessBridge=Object.freeze({
- clean,uid:standingUid,portrait,heroName:id=>heroes[id],selectedHero:()=>$('hero').value,
+ finishBoth:finishStandingPair,clean,uid:standingUid,portrait,heroName:id=>heroes[id],selectedHero:()=>$('hero').value,
  validHero:id=>typeof id==='string'&&Object.hasOwn(heroes,id),validProfile:isStandingSnapshot,
- sound:()=>combatSound.play('tap_click'),refresh:renderStandingBoard,
+ sound:()=>combatSound.play('tap_click'),captureSound:()=>combatSound.play('wood_drop'),refresh:renderStandingBoard,
  latest:latestStandingSnapshot,
  async profile(){const epoch=navigationEpoch,name=accountName();await hydrateSharedStanding(name,epoch);return epoch===navigationEpoch&&name===accountName()?standingSnapshot(localStandingProfile()):null},
  finish(descriptor,localSide,actualScore){

@@ -1,7 +1,7 @@
 'use strict';
 // Pure rules/clock state. Host owns the clock; guests replay and validate moves.
 (function(root){
- const REASONS=['checkmate','stalemate','repetition','fifty-move','material','agreement','resign','timeout'];
+ const REASONS=['checkmate','stalemate','repetition','fifty-move','material','agreement','resign','timeout','adjudication'];
  const validTime=t=>!!t&&Number.isInteger(t.minutes)&&t.minutes>=1&&t.minutes<=180&&Number.isInteger(t.increment)&&t.increment>=0&&t.increment<=60;
  const square=s=>typeof s==='string'&&/^[a-h][1-8]$/.test(s);
  class ChessSession{
