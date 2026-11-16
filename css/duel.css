@@ -163,3 +163,18 @@ body.in-chess{background:#2b1810}.in-chess .shell{background:#2b1810}.chess-play
 
 /* Presence shares the compact time-control cell so it cannot displace the turn banner. */
 @media(orientation:portrait){.is-player-portrait .chess-meta .chess-status{grid-column:1;grid-row:1}.is-player-portrait .chess-meta [data-chess-watch-count]{grid-column:2;grid-row:1;align-self:start;font-size:8px;line-height:12px;text-align:right}.is-player-portrait .chess-meta [data-chess-control]{grid-column:2;grid-row:1;align-self:end;line-height:12px}.is-player-portrait .chess-meta [data-chess-watch-count]:empty~[data-chess-control]{align-self:center}.is-player-portrait .chess-meta [data-chess-pgn]{grid-column:3;grid-row:1;align-self:center}.is-player-portrait .chess-meta [data-chess-decline]{grid-row:2}}
+
+/* Preserve square floral ends; only the undecorated middle of the ribbon stretches. */
+@media(orientation:portrait){
+ .is-player-portrait .chess-meta .chess-status{--chess-ribbon-size:40px;position:relative;isolation:isolate;min-width:0;width:100%;max-width:360px;min-height:var(--chess-ribbon-size);justify-self:center;padding:6px var(--chess-ribbon-size)}
+ .is-player-portrait.chess-spectator-sprites-ready .chess-meta .chess-status{background:none}
+ /* The local tray stays next to the board, above the local identity and two stat boxes. */
+ .is-player-portrait .chess-arena>.chess-player:last-child{grid-template-rows:auto minmax(var(--portrait-avatar),max-content)}
+ .is-player-portrait .chess-arena>.chess-player:last-child .chess-captured.is-summary{grid-row:1}
+ .is-player-portrait .chess-arena>.chess-player:last-child :is(.chess-avatar,.chess-identity,.chess-clock,.chess-player-points){grid-row:2}
+}
+@media(min-width:1100px) and (min-height:700px){
+ .is-spectator-desktop .spectate-turn{--chess-ribbon-size:54px;position:relative;isolation:isolate;min-width:0;width:100%;max-width:360px;min-height:var(--chess-ribbon-size);justify-self:center;padding:12px var(--chess-ribbon-size)}
+ .is-spectator-desktop.chess-spectator-sprites-ready .spectate-turn{background:none}
+}
+.is-player-portrait.chess-spectator-sprites-ready .chess-meta .chess-status::before,.is-spectator-desktop.chess-spectator-sprites-ready .spectate-turn::before{content:'';position:absolute;z-index:-1;left:0;right:0;top:50%;height:var(--chess-ribbon-size);transform:translateY(-50%);border-style:solid;border-width:0 var(--chess-ribbon-size);border-image-source:var(--spectate-turn-ribbon);border-image-slice:0 213 fill;border-image-width:0 var(--chess-ribbon-size);border-image-repeat:stretch;pointer-events:none;image-rendering:crisp-edges;image-rendering:pixelated}
