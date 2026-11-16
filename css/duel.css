@@ -178,3 +178,10 @@ body.in-chess{background:#2b1810}.in-chess .shell{background:#2b1810}.chess-play
  .is-spectator-desktop.chess-spectator-sprites-ready .spectate-turn{background:none}
 }
 .is-player-portrait.chess-spectator-sprites-ready .chess-meta .chess-status::before,.is-spectator-desktop.chess-spectator-sprites-ready .spectate-turn::before{content:'';position:absolute;z-index:-1;left:0;right:0;top:50%;height:var(--chess-ribbon-size);transform:translateY(-50%);border-style:solid;border-width:0 var(--chess-ribbon-size);border-image-source:var(--spectate-turn-ribbon);border-image-slice:0 213 fill;border-image-width:0 var(--chess-ribbon-size);border-image-repeat:stretch;pointer-events:none;image-rendering:crisp-edges;image-rendering:pixelated}
+
+/* Approved Vương ấn header logo: preserve the PNG's original aspect ratio. */
+.shell>.brand-header{gap:0;padding:4px 0 14px}.brand-header .brand-title{width:min(100%,560px);min-width:0;margin:0;line-height:1.2;font-size:clamp(1rem,3vw,1.5rem)}.brand-header .brand-logo{display:block;width:100%;max-width:100%;height:auto;image-rendering:crisp-edges;image-rendering:pixelated}
+@media(max-width:500px){.shell>.brand-header{padding:2px 0 10px}}
+
+/* Branding belongs to the lobby, never to a live/result/rematch battle. */
+body:is(.in-battle,.in-chess) .shell>.brand-header{display:none}
